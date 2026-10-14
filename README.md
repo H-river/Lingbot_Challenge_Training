@@ -10,6 +10,10 @@
 - 本次现场检查时 GPU 数量为 0；系统盘剩余约 67 GB，数据盘约 53 GB。这些是检查时快照，启动前必须重新核实。
 - 已验收的是 batch=1/max_steps=11 短测，不代表正式训练预算、长期稳定性、双卡/H100、Docker 或比赛成绩通过。依赖仍有已记录的 upstream metadata conflicts。
 
+## 在新机器上部署（Docker）
+
+交给队友部署时，看 [DEPLOY.md](DEPLOY.md)：一个镜像 + 权重包 + 数据包，用 `run.sh check / smoke / train` 三条命令完成。镜像构建：`bash docker/build.sh --save <输出目录>`；8 卡配置：`configs/train_8xA100.yaml`。
+
 ## 目录
 
 - `repos/lingbot-vla-v2/`：固定官方训练源码及其许可证。**其中官方默认 RoboTwin 配方不是本项目 clean-only 入口，不要直接用来训练。**

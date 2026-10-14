@@ -1,0 +1,26 @@
+# Build context = this repo. Large or machine-local things never enter the image.
+.git
+docker/vendor
+configs/paths.env
+.env
+.env.*
+data/
+models/
+checkpoints/
+envs/
+cache/
+logs/
+results/
+deliverables/
+**/__pycache__
+**/*.pyc
+**/*.egg-info
+*.safetensors
+*.pt
+*.pth
+*.parquet
+*.hdf5
+*.h5
+*.mp4
+*.tar
+*.tar.gz
