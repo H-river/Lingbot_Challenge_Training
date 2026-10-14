@@ -49,6 +49,7 @@ RUN --mount=type=bind,from=vendor,target=/tmp/vendor \
 COPY docs/versions/lingbotvla.portable-pins.txt configs/flash-attn-wheel.json /tmp/pins/
 RUN --mount=type=bind,from=vendor,target=/tmp/vendor \
     PY="$LINGBOT_ENV/bin/python" \
+ && "$PY" -m ensurepip --upgrade \
  && "$PY" -m pip install --index-url "$PIP_INDEX_URL" 'pip==25.2' 'setuptools==80.9.0' 'wheel==0.45.1' \
  && "$PY" -m pip install --index-url "$TORCH_INDEX_URL" 'torch==2.8.0' 'torchvision==0.23.0' 'torchaudio==2.8.0' \
  && "$PY" -m pip install --index-url "$PIP_INDEX_URL" --no-deps -r /tmp/pins/lingbotvla.portable-pins.txt \
