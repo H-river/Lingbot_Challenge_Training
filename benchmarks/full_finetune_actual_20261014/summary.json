@@ -1,0 +1,111 @@
+{
+  "state": "FULL_TRAINING_SCRIPT_SMOKE_PASS",
+  "checked_at": "2026-10-14T11:44:56.468025+00:00",
+  "hardware": {
+    "GPU": "NVIDIA A100-SXM4-80GB",
+    "RAM_GiB": 47.03879165649414
+  },
+  "config": "/root/lingbot_challenge/benchmarks/full_finetune_actual_20261014/a10080_mb1_gbs1_expandable/full_clean50_smoke.yaml",
+  "mb": 1,
+  "GA": 1,
+  "gbs": 1,
+  "seed": 42,
+  "completed_optimizer_steps": 11,
+  "official_StepTime_steps2_11_mean_s": 5.4675,
+  "official_StepTime_steps2_11_std_s": 2.161327331371473,
+  "steps9_11_mean_s": 2.3593333333333333,
+  "steps9_11_std_s": 0.024846193538112262,
+  "timing_scope": "official StepTime; no independent synchronized compute measurement; 9-11 follow Dynamo recompile_limit fallback, only 3 points",
+  "peak_allocated_GiB": 77.84519672393799,
+  "peak_reserved_GiB": 78.20703125,
+  "checkpoint": "/root/lingbot_challenge/checkpoints/full_clean50_smoke_20261014T113713Z/checkpoints/global_step_11",
+  "checkpoint_GiB": 48.981127666309476,
+  "HF_export": "PASS_BEFORE_DISCARD",
+  "resume": "NOT_REQUIRED_BY_USER",
+  "numerical_convergence_claimed": false,
+  "simulation_started": false,
+  "training_model_source_changed": false,
+  "allocator": "expandable_segments:True",
+  "protected_hashes_unchanged": {
+    "trainer": true,
+    "norm": true
+  },
+  "DCP": "PASS_BEFORE_DISCARD",
+  "checkpoint_retained": false,
+  "checkpoint_discarded_GiB": 60.87241541594267,
+  "attempts": [
+    {
+      "group": "a10080_mb1_gbs1",
+      "status": {
+        "state": "FAILED",
+        "exit_code": 1,
+        "ended_at": "2026-10-14T11:30:58.774000+00:00",
+        "elapsed_wall_s": 75.32693092099998,
+        "HF_export": "PENDING",
+        "resume": "PENDING",
+        "simulation_started": false
+      },
+      "memory": {
+        "rank": 0,
+        "completed": false,
+        "total_process_wall_s_including_startup_and_saves": 56.811795281999935,
+        "peak_allocated_GiB": 26.644169330596924,
+        "peak_reserved_GiB": 26.701171875,
+        "entry": "/root/lingbot_challenge/repos/lingbot-vla-v2/tasks/vla/train_lingbotvla.py",
+        "training_logic_modified": false
+      },
+      "min_host_available_GiB": 40.74246597290039
+    },
+    {
+      "group": "a10080_mb1_gbs1_r2",
+      "status": {
+        "state": "FAILED",
+        "exit_code": 1,
+        "ended_at": "2026-10-14T11:34:21.057952+00:00",
+        "elapsed_wall_s": 155.71456464800008,
+        "HF_export": "PENDING",
+        "resume": "PENDING",
+        "simulation_started": false
+      },
+      "memory": {
+        "rank": 0,
+        "completed": false,
+        "total_process_wall_s_including_startup_and_saves": 140.344518355,
+        "peak_allocated_GiB": 76.90743684768677,
+        "peak_reserved_GiB": 77.453125,
+        "entry": "/root/lingbot_challenge/repos/lingbot-vla-v2/tasks/vla/train_lingbotvla.py",
+        "training_logic_modified": false
+      },
+      "min_host_available_GiB": 35.9233283996582
+    },
+    {
+      "group": "a10080_mb1_gbs1_expandable",
+      "status": {
+        "state": "COMPLETE",
+        "exit_code": 0,
+        "ended_at": "2026-10-14T11:40:04.752743+00:00",
+        "elapsed_wall_s": 170.828455759,
+        "HF_export": "PENDING",
+        "resume": "PENDING",
+        "simulation_started": false
+      },
+      "memory": {
+        "rank": 0,
+        "completed": true,
+        "total_process_wall_s_including_startup_and_saves": 151.611066296,
+        "peak_allocated_GiB": 77.84519672393799,
+        "peak_reserved_GiB": 78.20703125,
+        "entry": "/root/lingbot_challenge/repos/lingbot-vla-v2/tasks/vla/train_lingbotvla.py",
+        "training_logic_modified": false
+      },
+      "min_host_available_GiB": 18.04702377319336
+    }
+  ],
+  "single_GPU_process_wall_min": 5.812789665549999,
+  "final_disk_free_GiB": {
+    "system": 66.94241333007812,
+    "data": 52.78827667236328
+  },
+  "ended_at": "2026-10-14T11:57:55.593837+00:00",
+  "git_tracked_diff": ""
+}

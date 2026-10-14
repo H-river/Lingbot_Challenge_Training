@@ -1,0 +1,6 @@
+{
+  "started_at": "2026-10-14T11:37:16.020631+00:00",
+  "output_dir": "/root/lingbot_challenge/checkpoints/full_clean50_smoke_20261014T113713Z",
+  "scope": "11 full-training steps plus DCP; HF/resume pending",
+  "training_started": true
+}

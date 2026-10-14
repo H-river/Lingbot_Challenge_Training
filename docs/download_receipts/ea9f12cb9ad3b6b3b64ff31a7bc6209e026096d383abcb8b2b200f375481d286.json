@@ -1,0 +1,9 @@
+{
+  "repository": "TianxingChen/RoboTwin2.0",
+  "revision": "3dc3b798668feb99ac61cc9086d84cbcc3d79186",
+  "url": "https://huggingface.co/datasets/TianxingChen/RoboTwin2.0/resolve/3dc3b798668feb99ac61cc9086d84cbcc3d79186/dataset/stamp_seal/aloha-agilex_clean_50.zip",
+  "mirror_revision": null,
+  "size": 264588288,
+  "sha256": "f23fa7187f4d95f0498a9cd273acead4bcca6ecefc98c602d0ba9b2995520141",
+  "local_path": "/root/lingbot_challenge/data/clean_raw/archives/dataset/stamp_seal/aloha-agilex_clean_50.zip"
+}

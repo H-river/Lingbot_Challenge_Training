@@ -1,0 +1,9 @@
+{
+  "task": "lift_pot",
+  "episodes": 50,
+  "frames": 5554,
+  "all_state_action_exact": true,
+  "native_video_boundary_decode": true,
+  "video_scope": "first and last dataset frames; not full video decode",
+  "manifest_sha256": "4a3d8889720dbfff26743243831752c8cab7101efd96f5513bfb9ca3126ec2d4"
+}

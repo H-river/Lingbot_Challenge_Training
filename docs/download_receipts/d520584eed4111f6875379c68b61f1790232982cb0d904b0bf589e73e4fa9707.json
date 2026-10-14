@@ -1,0 +1,9 @@
+{
+  "repository": "TianxingChen/RoboTwin2.0",
+  "revision": "3dc3b798668feb99ac61cc9086d84cbcc3d79186",
+  "url": "https://huggingface.co/datasets/TianxingChen/RoboTwin2.0/resolve/3dc3b798668feb99ac61cc9086d84cbcc3d79186/dataset/click_alarmclock/aloha-agilex_clean_50.zip",
+  "mirror_revision": null,
+  "size": 169381564,
+  "sha256": "65f6ca24635e9937f84b441ad66cf585a330e5664035a14dc98b58348a85dca1",
+  "local_path": "/root/lingbot_challenge/data/clean_raw/archives/dataset/click_alarmclock/aloha-agilex_clean_50.zip"
+}

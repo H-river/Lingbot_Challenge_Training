@@ -1,0 +1,9 @@
+{
+  "state": "OFFICIAL_BF16_HF_EXPORT_CREATED",
+  "HF_path": "/root/lingbot_challenge/checkpoints/full_clean50_smoke_20261014T113713Z/checkpoints/global_step_11/hf_ckpt",
+  "elapsed_s": 65.17035300299995,
+  "CPU_state_merge_for_export": true,
+  "CPU_inference": false,
+  "checkpoint_source": "/root/lingbot_challenge/checkpoints/full_clean50_smoke_20261014T113713Z/checkpoints/global_step_11",
+  "bytes": 12768172998
+}

@@ -1,0 +1,35 @@
+{
+  "state": "FULL_TRAINING_DCP_AND_SAMPLED_UPDATES_VERIFIED",
+  "steps": 11,
+  "DCP_numel": 6375907511,
+  "checkpoint": "/root/lingbot_challenge/checkpoints/full_clean50_smoke_20261014T113713Z/checkpoints/global_step_11",
+  "updates": {
+    "VLM_language": [
+      {
+        "key": "model.qwenvl_with_expert.qwenvl.model.language_model.layers.0.mlp.down_proj.weight",
+        "sampled_elements": 16384,
+        "changed_elements": 16384,
+        "max_abs_change": 0.0007336288690567017
+      }
+    ],
+    "VLM_vision": [
+      {
+        "key": "model.qwenvl_with_expert.qwenvl.model.visual.blocks.0.attn.proj.weight",
+        "sampled_elements": 16384,
+        "changed_elements": 16383,
+        "max_abs_change": 0.0003694528713822365
+      }
+    ],
+    "action_expert": [
+      {
+        "key": "model.qwenvl_with_expert.qwen_expert.model.layers.0.mlp.shared_expert.down_proj.weight",
+        "sampled_elements": 16384,
+        "changed_elements": 16384,
+        "max_abs_change": 0.0004194006323814392
+      }
+    ]
+  },
+  "HF_export": "PENDING",
+  "GPU_resume": "PENDING",
+  "full_6B_CPU_load": false
+}

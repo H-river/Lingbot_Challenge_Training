@@ -1,0 +1,9 @@
+{
+  "repository": "robbyant/lingbot-vla-v2-6b",
+  "revision": "11c703bf6a5c1f45b3b69168482da11fdbba53d7",
+  "url": "https://modelscope.cn/api/v1/models/Robbyant/lingbot-vla-v2-6b/repo?Revision=06dc3bdd941a2540c59034f18de5604017ecc0f4&FilePath=model-00005-of-00006.safetensors",
+  "mirror_revision": "06dc3bdd941a2540c59034f18de5604017ecc0f4",
+  "size": 4990095864,
+  "sha256": "8fe36bf1f4f617869954bdfa1ad12e16abd8b0235a5fa99c88d571d4cddf4a17",
+  "local_path": "/root/lingbot_challenge/models/lingbot-vla-v2-6b/model-00005-of-00006.safetensors"
+}

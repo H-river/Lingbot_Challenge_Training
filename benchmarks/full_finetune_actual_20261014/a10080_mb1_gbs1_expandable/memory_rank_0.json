@@ -1,0 +1,9 @@
+{
+  "rank": 0,
+  "completed": true,
+  "total_process_wall_s_including_startup_and_saves": 151.611066296,
+  "peak_allocated_GiB": 77.84519672393799,
+  "peak_reserved_GiB": 78.20703125,
+  "entry": "/root/lingbot_challenge/repos/lingbot-vla-v2/tasks/vla/train_lingbotvla.py",
+  "training_logic_modified": false
+}

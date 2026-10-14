@@ -1,0 +1,13 @@
+{
+  "exported_at": "2026-10-14T13:01:01.832368+00:00",
+  "source_project": "/root/lingbot_challenge",
+  "upstream_commit": "be969b8fd117fb70550c5d4bf4bc328211b5b1b6",
+  "source_files": 358,
+  "export_changes": [
+    "New README, AGENTS, ignore rules and paths.env.example",
+    "Installer recognizes and verifies vendored source snapshot",
+    "train.sh delegates to existing launcher with expandable allocator"
+  ],
+  "trained_during_export": false,
+  "original_remote_files_changed": false
+}

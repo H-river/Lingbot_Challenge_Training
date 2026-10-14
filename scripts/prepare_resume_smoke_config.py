@@ -1,0 +1,3 @@
+import pathlib,yaml,json,datetime,sys
+p=pathlib.Path(sys.argv[1]);c=yaml.safe_load(p.read_text());steps=c['train']['max_steps'];old=pathlib.Path(c['train']['output_dir']);cp=old/'checkpoints'/f'global_step_{steps}';assert (cp/'model/.metadata').is_file() and (cp/'optimizer/.metadata').is_file();assert (old/'checkpoint_structure_verified.json').is_file()
+c['train'].update(max_steps=steps+1,save_steps=steps+1,enable_resume=True,load_checkpoint_path=str(cp),allow_partial_checkpoint=False,output_dir=str(old.with_name(old.name+'_resume_'+datetime.datetime.now().strftime('%H%M%S'))));c['eval']={'enabled':False,'command':None};dest=p.with_name(p.stem+'_resume.yaml');assert not dest.exists();dest.write_text(yaml.safe_dump(c,sort_keys=False));print(dest)

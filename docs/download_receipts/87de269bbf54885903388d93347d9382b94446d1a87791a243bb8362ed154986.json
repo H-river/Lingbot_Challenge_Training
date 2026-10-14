@@ -1,0 +1,9 @@
+{
+  "repository": "TianxingChen/RoboTwin2.0",
+  "revision": "3dc3b798668feb99ac61cc9086d84cbcc3d79186",
+  "url": "https://huggingface.co/datasets/TianxingChen/RoboTwin2.0/resolve/3dc3b798668feb99ac61cc9086d84cbcc3d79186/dataset/move_pillbottle_pad/aloha-agilex_clean_50.zip",
+  "mirror_revision": null,
+  "size": 283878275,
+  "sha256": "1fe168f8d156ab1ece9cb3bdf71542a24821bcd620408a04fd822e87c24bfaf0",
+  "local_path": "/root/lingbot_challenge/data/clean_raw/archives/dataset/move_pillbottle_pad/aloha-agilex_clean_50.zip"
+}

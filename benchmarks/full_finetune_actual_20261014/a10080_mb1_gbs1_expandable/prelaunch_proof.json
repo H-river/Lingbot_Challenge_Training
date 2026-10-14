@@ -1,0 +1,10 @@
+{
+  "GPU": "NVIDIA A100-SXM4-80GB",
+  "RAM_GiB": 47.03879165649414,
+  "checkpoint_estimated_GiB": 48.96300043538213,
+  "checkpoint_free_GiB": 66.97665786743164,
+  "estimate_scope": "header-only conservative parameter count; no full CPU model load",
+  "config_sha256": "03c05353aac39fd8ba1b38585d8a4f128ec5c90def296c290323bcdf2decad78",
+  "norm_sha256": "bccf8d00c0bae955802c9d9522383b8f38761e568af6a49852b64184f095a4bc",
+  "trainer_sha256": "7896927842eea89793da4550cc7096e3c5f315e749f0bf8812cc51e1bae711d7"
+}

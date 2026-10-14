@@ -1,0 +1,16 @@
+{
+  "state": "CHECKPOINT_STRUCTURE_AND_EXTRA_STATE_VERIFIED",
+  "checkpoint": "/root/lingbot_challenge/checkpoints/full_clean50_smoke_20261014T113713Z/checkpoints/global_step_11",
+  "HF_checkpoint": "/root/lingbot_challenge/checkpoints/full_clean50_smoke_20261014T113713Z/checkpoints/global_step_11/hf_ckpt",
+  "steps": 11,
+  "ranks": 1,
+  "HF_shards": [
+    "model-00001-of-00003.safetensors",
+    "model-00002-of-00003.safetensors",
+    "model-00003-of-00003.safetensors"
+  ],
+  "HF_parameter_keys": 1708,
+  "HF_numel": 6375907511,
+  "full_6B_CPU_load": false,
+  "GPU_resume_execution": "SEPARATE_TEST_REQUIRED"
+}

@@ -1,0 +1,2 @@
+# MLflow permits SDK >=0.20. Pin a release compatible with upstream protobuf 3.20.3.
+databricks-sdk==0.57.0

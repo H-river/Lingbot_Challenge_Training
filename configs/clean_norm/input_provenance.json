@@ -1,0 +1,8 @@
+{
+  "episode_manifest_sha256": "4a3d8889720dbfff26743243831752c8cab7101efd96f5513bfb9ca3126ec2d4",
+  "train_list_sha256": "5b7a010f8a88d53e3b4166965bb1bcd4ad88957125282ba8f406f52af83ac20f",
+  "source": "TianxingChen/RoboTwin2.0",
+  "revision": "3dc3b798668feb99ac61cc9086d84cbcc3d79186",
+  "script": "official compute_norm_stats.py with import-only CPU adapter; see docs/patches/cpu-norm-imports.patch",
+  "data_ratio": 1.0
+}

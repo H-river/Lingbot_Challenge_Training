@@ -1,0 +1,9 @@
+{
+  "repository": "TianxingChen/RoboTwin2.0",
+  "revision": "3dc3b798668feb99ac61cc9086d84cbcc3d79186",
+  "url": "https://huggingface.co/datasets/TianxingChen/RoboTwin2.0/resolve/3dc3b798668feb99ac61cc9086d84cbcc3d79186/dataset/place_shoe/aloha-agilex_clean_50.zip",
+  "mirror_revision": null,
+  "size": 397873892,
+  "sha256": "56389d47bc4df90a40a3f0648ef4f1e48beda1d15386ee03c8586227809e29db",
+  "local_path": "/root/lingbot_challenge/data/clean_raw/archives/dataset/place_shoe/aloha-agilex_clean_50.zip"
+}

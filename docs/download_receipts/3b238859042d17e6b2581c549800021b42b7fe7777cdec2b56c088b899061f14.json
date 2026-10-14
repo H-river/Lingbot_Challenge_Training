@@ -1,0 +1,9 @@
+{
+  "repository": "robbyant/lingbot-vla-v2-6b",
+  "revision": "11c703bf6a5c1f45b3b69168482da11fdbba53d7",
+  "url": "https://modelscope.cn/api/v1/models/Robbyant/lingbot-vla-v2-6b/repo?Revision=06dc3bdd941a2540c59034f18de5604017ecc0f4&FilePath=tokenizer.json",
+  "mirror_revision": "06dc3bdd941a2540c59034f18de5604017ecc0f4",
+  "size": 11422654,
+  "sha256": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4",
+  "local_path": "/root/lingbot_challenge/models/lingbot-vla-v2-6b/tokenizer.json"
+}

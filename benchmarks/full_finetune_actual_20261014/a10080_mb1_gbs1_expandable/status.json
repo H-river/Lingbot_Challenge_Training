@@ -1,0 +1,11 @@
+{
+  "state": "COMPLETE",
+  "exit_code": 0,
+  "ended_at": "2026-10-14T11:40:04.752743+00:00",
+  "elapsed_wall_s": 170.828455759,
+  "HF_export": "PASS_BEFORE_DISCARD",
+  "resume": "NOT_REQUIRED_BY_USER",
+  "simulation_started": false,
+  "checkpoint_retained": false,
+  "final_state": "FULL_TRAINING_SCRIPT_SMOKE_PASS"
+}

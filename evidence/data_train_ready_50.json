@@ -1,0 +1,13 @@
+{
+  "state": "DATA_TRAIN_READY_50",
+  "tasks": 50,
+  "episodes": 2500,
+  "frames": 549787,
+  "manifest_sha256": "4a3d8889720dbfff26743243831752c8cab7101efd96f5513bfb9ca3126ec2d4",
+  "train_list_sha256": "5b7a010f8a88d53e3b4166965bb1bcd4ad88957125282ba8f406f52af83ac20f",
+  "norm_path": "/root/lingbot_challenge/configs/clean_norm/robotwin.json",
+  "norm_sha256": "bccf8d00c0bae955802c9d9522383b8f38761e568af6a49852b64184f095a4bc",
+  "native_video_scope": "per task first/last dataset frames via validator, not all frames",
+  "checked_at": "2026-10-14T11:37:14.494972+00:00",
+  "GPU_training_or_simulation_tested": false
+}

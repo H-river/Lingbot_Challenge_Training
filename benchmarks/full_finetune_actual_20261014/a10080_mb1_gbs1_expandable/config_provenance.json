@@ -1,0 +1,244 @@
+{
+  "source_config": "/root/lingbot_challenge/repos/lingbot-vla-v2/configs/vla/robotwin/robotwin.yaml",
+  "source_sha256": "ee915e4ad34589a6def35c9e3c12bb8ff7d9f768dfc7ad44ce789fa7aaea57e2",
+  "trainer_sha256": "7896927842eea89793da4550cc7096e3c5f315e749f0bf8812cc51e1bae711d7",
+  "config_sha256": "03c05353aac39fd8ba1b38585d8a4f128ec5c90def296c290323bcdf2decad78",
+  "world_size": 1,
+  "GPU_tested": false,
+  "changes": {
+    "model": {
+      "model_path": {
+        "official": "/path/to/pretain_ckpt/hf_ckpt",
+        "smoke": "/root/lingbot_challenge/models/lingbot-vla-v2-6b"
+      },
+      "tokenizer_path": {
+        "official": "/path/to/Qwen3-VL-4B-Instruct",
+        "smoke": "/root/lingbot_challenge/models/Qwen3-VL-4B-Instruct-config"
+      }
+    },
+    "data": {
+      "train_path": {
+        "official": "assets/training_data/robotwin.txt",
+        "smoke": "/root/lingbot_challenge/configs/train_clean.txt"
+      },
+      "robot_config_root": {
+        "official": "./configs/robot_configs",
+        "smoke": "/root/lingbot_challenge/configs/robot_configs"
+      },
+      "num_workers": {
+        "official": 8,
+        "smoke": 2
+      },
+      "norm_stats_file": {
+        "official": null,
+        "smoke": "/root/lingbot_challenge/configs/clean_norm/robotwin.json"
+      }
+    },
+    "train": {
+      "output_dir": {
+        "official": "/path/to/save_ckpt",
+        "smoke": "/root/lingbot_challenge/checkpoints/full_clean50_smoke_20261014T113713Z"
+      },
+      "enable_gradient_checkpointing": {
+        "official": false,
+        "smoke": true
+      },
+      "enable_full_shard": {
+        "official": false,
+        "smoke": true
+      },
+      "micro_batch_size": {
+        "official": 32,
+        "smoke": 1
+      },
+      "global_batch_size": {
+        "official": 1024,
+        "smoke": 1
+      },
+      "max_steps": {
+        "official": 50000,
+        "smoke": 11
+      },
+      "save_steps": {
+        "official": 10000,
+        "smoke": 11
+      },
+      "save_epochs": {
+        "official": 29000,
+        "smoke": 0
+      },
+      "enable_fp32": {
+        "official": true,
+        "smoke": false
+      },
+      "enable_resume": {
+        "official": true,
+        "smoke": false
+      },
+      "align_params": {
+        "official": {
+          "mode": "query",
+          "num_task_tokens": 8,
+          "depth_loss_weight": 0.004,
+          "future_depth_loss_weight": 0.004,
+          "use_future_video": true,
+          "llm": {
+            "dim_out": 2560,
+            "image_token_size": 8,
+            "image_input_size": 224
+          },
+          "depth": {
+            "model_type": "MoRGBD",
+            "moge_path": "/path/to/depth/moge2-vitb-normal.pt",
+            "morgbd_path": "/path/to/depth/model.pt",
+            "num_layers": 1,
+            "num_heads": 4,
+            "dim_head": 32,
+            "ff_mult": 1,
+            "num_backbone_tokens": 256,
+            "token_size": 16,
+            "dim_out": 1024,
+            "input_size": 224,
+            "use_future_depth": true,
+            "block_future_depth_to_action": false,
+            "detach_future_image_feats": true
+          },
+          "video": {
+            "ckpt_path": "/path/to/dino_video/teacher_step_10000.pth",
+            "config_path": "/path/to/dino_video/config.yaml",
+            "attention_mode": "flex_block_causal",
+            "input_size": 256,
+            "block_suffix_to_future_video": false,
+            "share_future_depth_query": true,
+            "use_shared_future_task_proj": true,
+            "use_current_shared_task_proj": true,
+            "num_future_frames": 1,
+            "use_warmup_frame": true,
+            "effective_fps": 1.0,
+            "n_blocks": 1,
+            "cls_pool": "last",
+            "detach_image_feats": true,
+            "num_layers": 1,
+            "num_heads": 4,
+            "dim_head": 32,
+            "ff_mult": 1,
+            "num_backbone_tokens": 256,
+            "dim_out": 1024,
+            "future_video_loss_weight": 0.004,
+            "use_smooth_l1_loss": false,
+            "use_mse_loss": true,
+            "mse_loss_weight": 1.0,
+            "use_patch_loss": true,
+            "use_current_patch_loss": true,
+            "use_cosine_loss": true,
+            "cosine_loss_weight": 0.2,
+            "use_cls_loss": false,
+            "cls_loss_type": "mse",
+            "cls_loss_weight": 0.2,
+            "log_max_samples": 32,
+            "log_scale": 16
+          },
+          "visual_steps": 5000
+        },
+        "smoke": {
+          "mode": "query",
+          "num_task_tokens": 8,
+          "depth_loss_weight": 0.004,
+          "future_depth_loss_weight": 0.004,
+          "use_future_video": true,
+          "llm": {
+            "dim_out": 2560,
+            "image_token_size": 8,
+            "image_input_size": 224
+          },
+          "depth": {
+            "model_type": "MoRGBD",
+            "moge_path": "/root/lingbot_challenge/models/MoGe-2-vitb-normal/model.pt",
+            "morgbd_path": "/root/lingbot_challenge/models/lingbot-vla-v2-6b/depth/model.pt",
+            "num_layers": 1,
+            "num_heads": 4,
+            "dim_head": 32,
+            "ff_mult": 1,
+            "num_backbone_tokens": 256,
+            "token_size": 16,
+            "dim_out": 1024,
+            "input_size": 224,
+            "use_future_depth": true,
+            "block_future_depth_to_action": false,
+            "detach_future_image_feats": true
+          },
+          "video": {
+            "ckpt_path": "/root/lingbot_challenge/models/lingbot-vla-v2-6b/dino_video/teacher_step_10000.pth",
+            "config_path": "/root/lingbot_challenge/models/lingbot-vla-v2-6b/dino_video/config.yaml",
+            "attention_mode": "flex_block_causal",
+            "input_size": 256,
+            "block_suffix_to_future_video": false,
+            "share_future_depth_query": true,
+            "use_shared_future_task_proj": true,
+            "use_current_shared_task_proj": true,
+            "num_future_frames": 1,
+            "use_warmup_frame": true,
+            "effective_fps": 1.0,
+            "n_blocks": 1,
+            "cls_pool": "last",
+            "detach_image_feats": true,
+            "num_layers": 1,
+            "num_heads": 4,
+            "dim_head": 32,
+            "ff_mult": 1,
+            "num_backbone_tokens": 256,
+            "dim_out": 1024,
+            "future_video_loss_weight": 0.004,
+            "use_smooth_l1_loss": false,
+            "use_mse_loss": true,
+            "mse_loss_weight": 1.0,
+            "use_patch_loss": true,
+            "use_current_patch_loss": true,
+            "use_cosine_loss": true,
+            "cosine_loss_weight": 0.2,
+            "use_cls_loss": false,
+            "cls_loss_type": "mse",
+            "cls_loss_weight": 0.2,
+            "log_max_samples": 32,
+            "log_scale": 16
+          },
+          "visual_steps": 5000
+        }
+      },
+      "train_expert_only": {
+        "official": null,
+        "smoke": false
+      },
+      "freeze_vit": {
+        "official": null,
+        "smoke": false
+      },
+      "enable_mixed_precision": {
+        "official": null,
+        "smoke": true
+      },
+      "gradient_accumulation_steps": {
+        "official": null,
+        "smoke": 1
+      },
+      "save_hf_weights": {
+        "official": null,
+        "smoke": false
+      },
+      "async_save_hf_weights": {
+        "official": null,
+        "smoke": false
+      },
+      "seed": {
+        "official": null,
+        "smoke": 42
+      }
+    },
+    "eval": {
+      "enabled": {
+        "official": null,
+        "smoke": false
+      }
+    }
+  }
+}

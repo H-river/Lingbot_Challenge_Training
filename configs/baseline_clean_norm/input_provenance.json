@@ -1,0 +1,18 @@
+{
+  "source": "TianxingChen/RoboTwin2.0",
+  "revision": "3dc3b798668feb99ac61cc9086d84cbcc3d79186",
+  "episode_manifest_sha256": "4a3d8889720dbfff26743243831752c8cab7101efd96f5513bfb9ca3126ec2d4",
+  "episodes": 2500,
+  "tasks": 50,
+  "frames": 549787,
+  "chunk_size": 50,
+  "native_input_equivalence_checks": 150,
+  "implementation": "Pinned official RunningStats on clean raw joint arrays; next-frame actions, terminal clamping, official arm/gripper slicing",
+  "batch_size": 256,
+  "order": "task name then episode index",
+  "quantiles": "Official online 5000-bin histogram; batching differs from full dataset statistics, so quantiles need not be bit-identical",
+  "raw_image_read": false,
+  "full_raw_files_rehashed_this_run": false,
+  "script_sha256": "17cad5be72348f84e2bccd2fa2731fb3d5b34ba9f355203beb03ffd513b86eb0",
+  "training_started": false
+}

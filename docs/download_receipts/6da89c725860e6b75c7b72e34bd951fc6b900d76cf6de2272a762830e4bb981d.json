@@ -1,0 +1,9 @@
+{
+  "repository": "robbyant/lingbot-vla-v2-6b",
+  "revision": "11c703bf6a5c1f45b3b69168482da11fdbba53d7",
+  "url": "https://modelscope.cn/api/v1/models/Robbyant/lingbot-vla-v2-6b/repo?Revision=06dc3bdd941a2540c59034f18de5604017ecc0f4&FilePath=dino_video%2Fteacher_step_10000.pth",
+  "mirror_revision": "06dc3bdd941a2540c59034f18de5604017ecc0f4",
+  "size": 1401509792,
+  "sha256": "086285efd8d65bc66e96b363807c4010ee5c790b7452b765edaa23837a63705b",
+  "local_path": "/root/lingbot_challenge/models/lingbot-vla-v2-6b/dino_video/teacher_step_10000.pth"
+}

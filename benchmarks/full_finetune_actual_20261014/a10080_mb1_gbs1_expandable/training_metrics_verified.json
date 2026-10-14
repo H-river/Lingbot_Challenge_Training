@@ -1,0 +1,129 @@
+{
+  "state": "FINITE_TRAINING_METRICS_VERIFIED",
+  "steps": [
+    {
+      "step": 1,
+      "Loss": 0.2753,
+      "VLA_Loss": 0.2431,
+      "Depth_Loss": 3.5732,
+      "Future_Depth_Loss": 3.4372,
+      "FutureVideo_Loss": 0.7515,
+      "GradNorm": 4.3213,
+      "StepTime": 33.019
+    },
+    {
+      "step": 2,
+      "Loss": 0.3334,
+      "VLA_Loss": 0.3056,
+      "Depth_Loss": 2.8509,
+      "Future_Depth_Loss": 3.0457,
+      "FutureVideo_Loss": 0.7452,
+      "GradNorm": 3.1124,
+      "StepTime": 7.277
+    },
+    {
+      "step": 3,
+      "Loss": 0.2814,
+      "VLA_Loss": 0.2525,
+      "Depth_Loss": 3.2344,
+      "Future_Depth_Loss": 3.0409,
+      "FutureVideo_Loss": 0.6811,
+      "GradNorm": 4.953,
+      "StepTime": 6.521
+    },
+    {
+      "step": 4,
+      "Loss": 0.5758,
+      "VLA_Loss": 0.5486,
+      "Depth_Loss": 2.9616,
+      "Future_Depth_Loss": 2.938,
+      "FutureVideo_Loss": 0.6433,
+      "GradNorm": 2.5482,
+      "StepTime": 6.649
+    },
+    {
+      "step": 5,
+      "Loss": 0.2428,
+      "VLA_Loss": 0.215,
+      "Depth_Loss": 3.0919,
+      "Future_Depth_Loss": 2.994,
+      "FutureVideo_Loss": 0.6106,
+      "GradNorm": 3.3272,
+      "StepTime": 7.253
+    },
+    {
+      "step": 6,
+      "Loss": 0.2865,
+      "VLA_Loss": 0.2584,
+      "Depth_Loss": 3.0323,
+      "Future_Depth_Loss": 3.1167,
+      "FutureVideo_Loss": 0.607,
+      "GradNorm": 4.9241,
+      "StepTime": 6.748
+    },
+    {
+      "step": 7,
+      "Loss": 0.2178,
+      "VLA_Loss": 0.1946,
+      "Depth_Loss": 2.4137,
+      "Future_Depth_Loss": 2.4996,
+      "FutureVideo_Loss": 0.6034,
+      "GradNorm": 4.267,
+      "StepTime": 6.576
+    },
+    {
+      "step": 8,
+      "Loss": 0.2917,
+      "VLA_Loss": 0.2649,
+      "Depth_Loss": 3.0861,
+      "Future_Depth_Loss": 2.7697,
+      "FutureVideo_Loss": 0.5712,
+      "GradNorm": 3.0355,
+      "StepTime": 6.573
+    },
+    {
+      "step": 9,
+      "Loss": 0.3661,
+      "VLA_Loss": 0.3417,
+      "Depth_Loss": 2.6172,
+      "Future_Depth_Loss": 2.6162,
+      "FutureVideo_Loss": 0.5824,
+      "GradNorm": 6.7773,
+      "StepTime": 2.388
+    },
+    {
+      "step": 10,
+      "Loss": 0.508,
+      "VLA_Loss": 0.4858,
+      "Depth_Loss": 2.3424,
+      "Future_Depth_Loss": 2.3872,
+      "FutureVideo_Loss": 0.5462,
+      "GradNorm": 15.0933,
+      "StepTime": 2.346
+    },
+    {
+      "step": 11,
+      "Loss": 0.2657,
+      "VLA_Loss": 0.2435,
+      "Depth_Loss": 2.2338,
+      "Future_Depth_Loss": 2.4608,
+      "FutureVideo_Loss": 0.5702,
+      "GradNorm": 3.7644,
+      "StepTime": 2.344
+    }
+  ],
+  "timing_source": "official trainer StepTime; not separately synchronized compute-only timing",
+  "steps_2_11_mean_s": 5.4675,
+  "steps_2_11_sample_std_s": 2.161327331371473,
+  "memory": [
+    {
+      "rank": 0,
+      "completed": true,
+      "total_process_wall_s_including_startup_and_saves": 151.611066296,
+      "peak_allocated_GiB": 77.84519672393799,
+      "peak_reserved_GiB": 78.20703125,
+      "entry": "/root/lingbot_challenge/repos/lingbot-vla-v2/tasks/vla/train_lingbotvla.py",
+      "training_logic_modified": false
+    }
+  ]
+}

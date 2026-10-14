@@ -1,0 +1,9 @@
+{
+  "repository": "TianxingChen/RoboTwin2.0",
+  "revision": "3dc3b798668feb99ac61cc9086d84cbcc3d79186",
+  "url": "https://huggingface.co/datasets/TianxingChen/RoboTwin2.0/resolve/3dc3b798668feb99ac61cc9086d84cbcc3d79186/dataset/place_fan/aloha-agilex_clean_50.zip",
+  "mirror_revision": null,
+  "size": 314130763,
+  "sha256": "4b458e951402b50e8006ac10b63a8e3e5eec002e7b67e40b12ee30736b9694ff",
+  "local_path": "/root/lingbot_challenge/data/clean_raw/archives/dataset/place_fan/aloha-agilex_clean_50.zip"
+}

@@ -1,0 +1,9 @@
+{
+  "repository": "robbyant/lingbot-vla-v2-6b",
+  "revision": "11c703bf6a5c1f45b3b69168482da11fdbba53d7",
+  "url": "https://huggingface.co/robbyant/lingbot-vla-v2-6b/resolve/11c703bf6a5c1f45b3b69168482da11fdbba53d7/preprocessor_config.json",
+  "mirror_revision": null,
+  "size": 782,
+  "sha256": null,
+  "local_path": "/root/lingbot_challenge/models/lingbot-vla-v2-6b/preprocessor_config.json"
+}
