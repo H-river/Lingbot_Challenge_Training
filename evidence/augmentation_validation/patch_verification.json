@@ -1,0 +1,8 @@
+{
+  "base_commit": "e946171e3db5aab820164c260621f30b41c08a73",
+  "original_snapshot_files": 358,
+  "clean_apply": true,
+  "patched_files": 7,
+  "patch_sha256": "1afb92038a1d65c289ac7714773f148b0ab464d5eeb1776984cabf5620ac53ab",
+  "remote_patched_files_match": true
+}

@@ -1,0 +1,548 @@
+diff --git a/repos/lingbot-vla-v2/lingbotvla/data/data_loader.py b/repos/lingbot-vla-v2/lingbotvla/data/data_loader.py
+index 6c34523..74cf469 100644
+--- a/repos/lingbot-vla-v2/lingbotvla/data/data_loader.py
++++ b/repos/lingbot-vla-v2/lingbotvla/data/data_loader.py
+@@ -134,6 +134,8 @@ class DistributedDataloader(StatefulDataLoader):
+     sampler: "StatefulDistributedSampler"
+ 
+     def set_epoch(self, epoch: int) -> None:
++        if hasattr(self.dataset, "augmentation_set_epoch"):
++            self.dataset.augmentation_set_epoch(epoch)
+         if self.sampler is not None and hasattr(self.sampler, "set_epoch"):
+             self.sampler.set_epoch(epoch)
+         elif hasattr(self.dataset, "set_epoch"):
+@@ -204,6 +206,9 @@ def build_dataloader(
+     else:
+         collate_fn = MakeMicroBatchCollator(num_micro_batch=num_micro_batch, internal_data_collator=collate_fn)
+ 
++    if hasattr(dataset, "configure_augmentation_clock"):
++        dataset.configure_augmentation_clock(seed)
++
+     sampler = None
+     if not isinstance(dataset, IterableDataset):
+         sampler = StatefulDistributedSampler(
+diff --git a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/augment.py b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/augment.py
+new file mode 100644
+index 0000000..bcb2df7
+--- /dev/null
++++ b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/augment.py
+@@ -0,0 +1,352 @@
++"""Deterministic CPU-only augmentation; no simulator or evaluation data access."""
++from functools import lru_cache
++from pathlib import Path
++import hashlib
++import json
++import math
++import os
++
++import cv2
++import numpy as np
++import torch
++from PIL import Image, ImageEnhance, ImageFilter
++
++
++def safe_path(path):
++    p = Path(path).expanduser().resolve()
++    if 'unseen' in p.parts:
++        raise ValueError('unseen assets are forbidden')
++    return p
++
++
++def sample_rng(seed, epoch, index, stream='sample'):
++    digest = hashlib.sha256(f'{int(seed)}:{int(epoch)}:{int(index)}:{stream}'.encode()).digest()
++    return np.random.default_rng(int.from_bytes(digest[:8], 'little'))
++
++
++def enabled(config, policy_eval=False):
++    profile = config.get('profile', 'none')
++    if profile not in ('none', 'v1', 'v2'):
++        raise ValueError(f'Unknown aug.profile: {profile}')
++    return not policy_eval and profile != 'none'
++
++
++def uint8_hwc(tensor):
++    return tensor.detach().cpu().numpy().transpose(1, 2, 0).astype(np.uint8)
++
++
++def tensor_image(array, reference):
++    return torch.from_numpy(np.ascontiguousarray(array.transpose(2, 0, 1))).to(reference)
++
++
++@lru_cache(maxsize=4)
++def seen_index(root):
++    """Validate ALL clean episodes before any instruction replacement."""
++    import pandas as pd
++    root = safe_path(root)
++    result = {}
++    manifests = sorted((root / 'configs').glob('clean_episodes_*.manifest.json'))
++    for manifest in manifests:
++        data = json.loads(manifest.read_text())
++        task = data['tasks'][0]
++        episodes = data['episodes']
++        if len(episodes) != 50 or {e['episode'] for e in episodes} != set(range(50)):
++            raise ValueError(f'Incomplete manifest: {task}')
++        repo = root / 'data/clean_processed/lerobot' / task
++        prov = json.loads((repo / 'conversion_provenance.json').read_text())
++        candidates = [manifest, root / 'configs/clean_episodes.manifest.json']
++        matched = [p for p in candidates if p.is_file() and hashlib.sha256(p.read_bytes()).hexdigest() == prov['input_manifest_sha256']]
++        if not matched or prov.get('instruction_field') != 'seen' or prov.get('sample_only'):
++            raise ValueError(f'Unverified conversion: {task}')
++        source = [e for e in json.loads(matched[0].read_text())['episodes'] if e['task'] == task]
++        if source != episodes:
++            raise ValueError(f'Manifest disagreement: {task}')
++        files = sorted((repo / 'meta/episodes').rglob('*.parquet'))
++        metadata = pd.concat([pd.read_parquet(p, columns=['episode_index', 'tasks']) for p in files])
++        if len(metadata) != 50 or set(metadata.episode_index) != set(range(50)):
++            raise ValueError(f'Incomplete LeRobot episodes: {task}')
++        metadata = metadata.set_index('episode_index')
++        for e in episodes:
++            raw = safe_path(root / e['instructions_path']).read_bytes()
++            if hashlib.sha256(raw).hexdigest() != e['instructions_sha256']:
++                raise ValueError(f'Seen SHA mismatch: {task}/{e["episode"]}')
++            obj = json.loads(raw)
++            if set(obj) != {'seen'} or not obj['seen'] or not all(isinstance(x, str) for x in obj['seen']):
++                raise ValueError('Instruction JSON must contain only a nonempty seen list')
++            prompts = list(metadata.loc[e['episode'], 'tasks'])
++            if len(prompts) != 1 or prompts[0] not in obj['seen']:
++                raise ValueError(f'Episode mapping mismatch: {task}/{e["episode"]}')
++            result[(str(repo.resolve()), e['episode'])] = (obj['seen'], str(safe_path(root / e['path'])), task)
++    if len(manifests) != 50 or len(result) != 2500:
++        raise ValueError('All 50 tasks / 2500 trajectories must be validated')
++    return result
++
++
++def estimate_colors(image):
++    """Spatially seeded robust modes; conservative masks are reviewed offline."""
++    h, w = image.shape[:2]
++    colors = {}
++    for name, region in [('table', image[h//2:]), ('wall', image[:max(1,h//12)])]:
++        bins = (region.reshape(-1, 3).astype(np.int32) // 12)
++        keys, counts = np.unique(bins, axis=0, return_counts=True)
++        mode = keys[counts.argmax()]
++        pixels = region.reshape(-1, 3)[np.all(bins == mode, axis=1)]
++        colors[name] = np.median(pixels, axis=0)
++    return colors
++
++
++def region_mask(image, color, tolerance=18, background_only=True):
++    return _region_mask(image.shape, image.tobytes(), tuple(float(x) for x in color), tolerance, background_only).copy()
++
++
++@lru_cache(maxsize=128)
++def _region_mask(shape, pixels, color, tolerance, background_only):
++    image = np.frombuffer(pixels, dtype=np.uint8).reshape(shape)
++    color = np.asarray(color)
++    distance = np.linalg.norm(image.astype(np.float32) - color, axis=-1)
++    raw = (distance < tolerance).astype(np.uint8)
++    kernel = np.ones((3, 3), np.uint8)
++    mask = cv2.morphologyEx(raw, cv2.MORPH_OPEN, kernel)
++    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
++    # Closed object reflections must not become background. Separate boundaries
++    # before connected-component filtering, then demand broad frame contact.
++    if background_only:
++        mask *= raw
++        edges = cv2.Canny(cv2.cvtColor(image, cv2.COLOR_RGB2GRAY), 30, 80)
++        mask[cv2.dilate(edges, kernel) > 0] = 0
++    n, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
++    out = np.zeros_like(mask)
++    for i in range(1, n):
++        component = labels == i
++        contacts = [int(component[0].sum()), int(component[-1].sum()), int(component[:,0].sum()), int(component[:,-1].sum())]
++        if (stats[i, cv2.CC_STAT_AREA] >= image.shape[0]*image.shape[1]*0.04
++                and (not background_only or (sum(c > 0 for c in contacts) >= 2
++                and sum(contacts) >= .05 * (2*image.shape[0]+2*image.shape[1])))):
++            out[component] = 1
++    # Closing must never add protected object pixels; erode for a safety margin.
++    return cv2.erode(out * raw, kernel).astype(bool)
++
++
++@lru_cache(maxsize=256)
++def episode_colors(raw_path):
++    import h5py
++    names = {'camera_top': 'head_camera', 'camera_wrist_left': 'left_camera', 'camera_wrist_right': 'right_camera'}
++    colors = {}
++    with h5py.File(safe_path(raw_path), 'r') as h:
++        for camera, source in names.items():
++            frame = cv2.imdecode(np.frombuffer(h[f'observation/{source}/rgb'][0], np.uint8), cv2.IMREAD_COLOR)
++            if frame is None:
++                raise ValueError('Undecodable release frame')
++            colors[camera] = estimate_colors(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
++    return colors
++
++
++def geometry(image, params):
++    h, w = image.shape[:2]
++    side, x, y, dx, dy = params
++    ch, cw = max(1, round(h*side)), max(1, round(w*side))
++    top, left = round(y*(h-ch)), round(x*(w-cw))
++    cropped = cv2.resize(image[top:top+ch, left:left+cw], (w,h), interpolation=cv2.INTER_LINEAR)
++    return cv2.warpAffine(cropped, np.float32([[1,0,dx*w],[0,1,dy*h]]), (w,h), borderMode=cv2.BORDER_REFLECT_101)
++
++
++def perlin_noise(rng, size=256, cells=8):
++    angles=rng.uniform(0,2*np.pi,(cells+1,cells+1))
++    gradients=np.stack((np.cos(angles),np.sin(angles)),axis=-1)
++    y,x=np.mgrid[:size,:size].astype(np.float32)*cells/size
++    ix,iy=x.astype(int),y.astype(int);fx,fy=x-ix,y-iy
++    u=fx**3*(fx*(fx*6-15)+10);v=fy**3*(fy*(fy*6-15)+10)
++    def dot(dx,dy):
++        g=gradients[iy+dy,ix+dx]
++        return g[...,0]*(fx-dx)+g[...,1]*(fy-dy)
++    return ((1-v)*((1-u)*dot(0,0)+u*dot(1,0))+v*((1-u)*dot(0,1)+u*dot(1,1))).astype(np.float32)
++
++
++def procedural_texture(rng, size=256):
++    y, x = np.mgrid[:size,:size].astype(np.float32)/size
++    kind = int(rng.integers(8))
++    noise = cv2.resize(rng.random((16,16)).astype(np.float32), (size,size), interpolation=cv2.INTER_CUBIC)
++    patterns = [np.sin(x*70+noise*8), np.sin((x+y)*25+noise*10),
++                np.sin(x*200)*np.sin(y*200), ((x*8)%1>.08)*((y*8)%1>.08),
++                np.sin(x*60), (np.floor(x*8)+np.floor(y*8))%2, perlin_noise(rng,size),
++                cv2.resize(rng.random((4,4)).astype(np.float32),(size,size),interpolation=cv2.INTER_NEAREST)*2-1]
++    base = rng.uniform(100,220,3)
++    return np.clip(base+patterns[kind][...,None]*rng.uniform(15,55),0,255).astype(np.uint8)
++
++
++@lru_cache(maxsize=8)
++def texture_files(directory):
++    root = safe_path(directory)
++    if root.name != 'seen':
++        raise ValueError('robotwin_seen requires the seen directory itself')
++    paths = []
++    for p in sorted(root.iterdir()):
++        p = safe_path(p)  # reject symlink escape into unseen BEFORE opening
++        if p.is_file() and p.suffix.lower() in ('.png','.jpg','.jpeg'):
++            paths.append(str(p))
++    if not paths:
++        raise ValueError('No seen textures')
++    return tuple(paths)
++
++
++@lru_cache(maxsize=64)
++def read_texture(path):
++    with Image.open(safe_path(path)) as im:
++        return np.asarray(im.convert('RGB').resize((256,256))).copy()
++
++
++def make_texture(config, rng):
++    source = config.get('source', 'procedural')
++    if source == 'procedural':
++        tile = procedural_texture(rng)
++    elif source == 'robotwin_seen':
++        paths = texture_files(config['seen_dir'])
++        tile = read_texture(paths[int(rng.integers(len(paths)))])
++    else:
++        raise ValueError('Unsupported texture source')
++    tile = np.rot90(tile, int(rng.integers(4)))
++    size = int(rng.integers(64,257))
++    tile = cv2.resize(tile, (size,size))
++    return np.tile(tile, (math.ceil(256/size),math.ceil(256/size),1))[:256,:256]
++
++
++def color_image(image, params, noise_seed):
++    b,c,s,hue,noise,blur = params
++    im = Image.fromarray(image)
++    for cls, factor in [(ImageEnhance.Brightness,b),(ImageEnhance.Contrast,c),(ImageEnhance.Color,s)]:
++        im = cls(im).enhance(factor)
++    hsv = np.array(im.convert('HSV'))
++    hsv[...,0] = (hsv[...,0].astype(np.int32)+hue)%256
++    im = Image.fromarray(hsv, 'HSV').convert('RGB').filter(ImageFilter.GaussianBlur(blur))
++    arr = np.asarray(im).astype(np.float32)
++    arr += np.random.default_rng(noise_seed).normal(0,noise,arr.shape)
++    return np.clip(arr,0,255).astype(np.uint8)
++
++
++class SampleAugment:
++    def __init__(self, config, seed, epoch, index, raw_path, task):
++        self.config, self.task = config, task
++        for operation in ('color','geometric','texture','distractor'):
++            probability=config.get(operation,{}).get('p',.5 if operation=='color' else .3)
++            if not 0 <= probability <= 1:
++                raise ValueError(f'{operation}.p must be in [0,1]')
++        if config.get('profile') == 'v2' and config.get('texture',{}).get('source') == 'robotwin_seen':
++            texture_files(config['texture']['seen_dir'])
++        self.rng = sample_rng(seed,epoch,index)
++        self.noise_seed = int(sample_rng(seed,epoch,index,'noise').integers(2**32))
++        self.state_rng = sample_rng(seed,epoch,index,'state')
++        self.raw_path = raw_path
++        self.geom = None
++        self.color = None
++        self.textures = {}
++        self.placements = {}
++        rng = self.rng
++        g, c = config.get('geometric',{}), config.get('color',{})
++        if rng.random() < g.get('p',.3):
++            self.geom = (math.sqrt(rng.uniform(g.get('min_area',.9),1)),rng.random(),rng.random(),*rng.uniform(-g.get('max_shift',.04),g.get('max_shift',.04),2))
++        if rng.random() < c.get('p',.5):
++            self.color = (rng.uniform(.7,1.3),rng.uniform(.6,1.4),rng.uniform(.5,1.5),int(rng.integers(-4,5)),rng.uniform(0,2),rng.uniform(0,.5))
++        # Every operation gets its own Bernoulli decision, including inactive V1 operations.
++        tc, dc = config.get('texture',{}), config.get('distractor',{})
++        texture_on, self.distractor_on = rng.random() < tc.get('p',.3), rng.random() < dc.get('p',.3)
++        if config['profile'] == 'v2' and texture_on:
++            self.textures = {region:make_texture(tc,rng) for region in tc.get('regions',['table','wall'])}
++        self.distractor_on &= config['profile'] == 'v2'
++        if not config.get('teacher_uses_clean',True):
++            raise ValueError('This pipeline requires geometry-only teachers')
++
++    def apply_pair(self, current, future=None):
++        students, teachers, future_students, future_teachers = {},{},{},{}
++        colors = episode_colors(self.raw_path) if self.textures or self.distractor_on else {}
++        for camera, tensor in current.items():
++            images = [uint8_hwc(tensor)]
++            if future and camera in future:
++                images.append(uint8_hwc(future[camera]))
++            masks = [{region:region_mask(im,color) for region,color in colors.get(camera,{}).items()} for im in images]
++            dc = self.config.get("distractor",{})
++            placements = plan_distractors(dc,self.task,masks,self.rng) if self.distractor_on and camera in dc.get("cameras",["camera_top"]) else []
++            for i,im in enumerate(images):
++                teacher = geometry(im,self.geom) if self.geom else im.copy()
++                student = im.copy()
++                for region, texture in self.textures.items():
++                    mask = masks[i][region]
++                    # Do not invent wall/table separation when their colors coincide.
++                    if region == 'wall' and np.linalg.norm(colors[camera]['wall']-colors[camera]['table']) < 24:
++                        continue
++                    alpha = cv2.GaussianBlur(mask.astype(np.float32),(0,0),1)*mask
++                    tex = cv2.resize(texture,(im.shape[1],im.shape[0])).astype(np.float32)
++                    illumination = im.mean(-1,keepdims=True)/max(1,float(colors[camera][region].mean()))
++                    student = np.clip(student*(1-alpha[...,None])+tex*illumination*alpha[...,None],0,255).astype(np.uint8)
++                student = paste_distractors(student,placements)
++                if self.geom:
++                    student = geometry(student,self.geom)
++                if self.color:
++                    student = color_image(student,self.color,self.noise_seed)
++                a,b = (students,teachers) if i==0 else (future_students,future_teachers)
++                a[camera],b[camera] = tensor_image(student,tensor),tensor_image(teacher,tensor)
++        return students,teachers,future_students,future_teachers
++
++    def perturb_state(self,state):
++        config = self.config.get('state_noise',{})
++        if not config.get('enabled',False):
++            return state
++        noise = self.state_rng.normal(0,config.get('std',0),tuple(state.shape))
++        return state+torch.as_tensor(noise,dtype=state.dtype,device=state.device)
++
++
++@lru_cache(maxsize=4)
++def distractor_library(directory):
++    root = safe_path(directory)
++    manifest = json.loads((root/'manifest.json').read_text())
++    if manifest.get('source') != 'release_clean_first_head_frames':
++        raise ValueError('Unapproved distractor library source')
++    for entry in manifest['items']:
++        path = safe_path(root/entry['file'])
++        if not path.is_relative_to(root) or hashlib.sha256(path.read_bytes()).hexdigest() != entry['sha256']:
++            raise ValueError('Distractor path/hash mismatch')
++    return root,manifest['items']
++
++
++@lru_cache(maxsize=128)
++def read_cutout(path):
++    with Image.open(safe_path(path)) as im:
++        return np.array(im.convert('RGBA'))
++
++
++def plan_distractors(config, task, masks, rng):
++    root, library = distractor_library(config['library_dir'])
++    candidates = [e for e in library if e['task'] != task]
++    if not candidates:
++        return []
++    allowed = np.logical_and.reduce([m['table'] for m in masks])
++    allowed = cv2.erode(allowed.astype(np.uint8),np.ones((7,7),np.uint8)).astype(bool)
++    h,w = allowed.shape
++    placements = []
++    for _ in range(int(rng.integers(1,config.get('max_count',3)+1))):
++        entry = candidates[int(rng.integers(len(candidates)))]
++        patch = read_cutout(str(root/entry['file']))
++        scale = rng.uniform(.5,1.2)*w/320
++        pw,ph = max(2,round(patch.shape[1]*scale)),max(2,round(patch.shape[0]*scale))
++        if pw >= w or ph >= h:
++            continue
++        patch = cv2.resize(patch,(pw,ph))
++        if rng.random()<.5:
++            patch = patch[:,::-1].copy()
++        support = patch[...,3]>0
++        for _ in range(config.get('max_retries',20)):
++            x,y = int(rng.integers(w-pw)),int(rng.integers(h-ph))
++            roi = allowed[y:y+ph,x:x+pw]
++            if support.any() and np.all(roi[support]):
++                placements.append((x,y,patch))
++                roi[support] = False
++                break
++    return placements
++
++
++def paste_distractors(image, placements):
++    image = image.copy()
++    for x,y,patch in placements:
++        h,w = patch.shape[:2]; a = patch[...,3:4].astype(np.float32)/255
++        roi=image[y:y+h,x:x+w]
++        image[y:y+h,x:x+w]=np.clip(roi*(1-a)+patch[...,:3]*a,0,255).astype(np.uint8)
++    return image
+diff --git a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/base_dataset.py b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/base_dataset.py
+index 71d62a0..ddd5aa6 100644
+--- a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/base_dataset.py
++++ b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/base_dataset.py
+@@ -173,6 +173,12 @@ class VLADataset(Dataset):
+         if do_nomalize and config is None:
+             raise ValueError("VLADataset requires a model config; pass model.config via build_vla_dataset.")
+ 
++        from .augment import enabled, seen_index
++        self.aug_config = getattr(dataset_config, "aug", {}) or {}
++        self.aug_repo = str(Path(repo_id).expanduser().resolve())
++        self.aug_index = seen_index(os.environ["LINGBOT_ROOT"]) if enabled(self.aug_config) else None
++        self.aug_clock = torch.zeros(2, dtype=torch.int64).share_memory_()
++        self.aug_offset = 0
+         self.processor = processor
+         self.config = config
+         self.chunk_size = chunk_size
+@@ -265,6 +271,12 @@ class VLADataset(Dataset):
+                     item[state_feature] = item[state_feature].unsqueeze(-1)
+         return item
+ 
++    def configure_augmentation_clock(self, seed):
++        self.aug_clock[0] = seed
++
++    def augmentation_set_epoch(self, epoch):
++        self.aug_clock[1] = epoch
++
+     def getitem(self, idx):
+         raw_item = self.check_lerobot_item(self.dataset[idx])
+         if (
+@@ -276,7 +288,14 @@ class VLADataset(Dataset):
+                 float(self.dataset_meta.fps) / float(max(1, self.chunk_size - 1)),
+                 dtype=torch.float32,
+             )
+-        item = self.feature_transform.apply(raw_item)
++        context = None
++        if self.aug_index is not None:
++            from .augment import SampleAugment
++            episode = int(raw_item["episode_index"])
++            seen, raw_path, task = self.aug_index[(self.aug_repo, episode)]
++            context = SampleAugment(self.aug_config, int(self.aug_clock[0]), int(self.aug_clock[1]), self.aug_offset + idx, raw_path, task)
++            context.seen = seen
++        item = self.feature_transform.apply(raw_item, aug_context=context)
+         if self.transform is not None:
+             item = self.transform(item, raw_item, self.feature_transform.feature_config.images, self.feature_transform.key_mapping)
+         return item
+diff --git a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/multi_vla_dataset.py b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/multi_vla_dataset.py
+index e6f0e14..41ca983 100644
+--- a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/multi_vla_dataset.py
++++ b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/multi_vla_dataset.py
+@@ -109,6 +109,16 @@ class MultiVLADataset(Dataset):
+             dataset_start_index.append(start_index)
+             start_index += dataset.dataset.num_frames
+         self.dataset_start_index = dataset_start_index
++        for child, offset in zip(self._datasets, dataset_start_index):
++            child.aug_offset = offset
++
++    def configure_augmentation_clock(self, seed):
++        for child in self._datasets:
++            child.configure_augmentation_clock(seed)
++
++    def augmentation_set_epoch(self, epoch):
++        for child in self._datasets:
++            child.augmentation_set_epoch(epoch)
+ 
+ 
+     @property
+@@ -147,6 +157,8 @@ class MultiVLADataset(Dataset):
+ 
+         if idx < 0 or idx >= len(self):
+             raise IndexError(f"Index {idx} out of bounds.")
++        if self._datasets and self._datasets[0].aug_index is not None:
++            return self.getdata(idx)
+         max_retries = 200
+         attempts = 0
+         cur = idx
+diff --git a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/transform.py b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/transform.py
+index 05fe43f..450be15 100644
+--- a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/transform.py
++++ b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/transform.py
+@@ -285,6 +285,7 @@ def prepare_images(
+     return_image_grid_thw=False,
+     augment_params=None,
+     return_augment_params=False,
++    teacher_images=None,
+ ):
+     """Normalize, resize, and pad images and stack them into a tensor.
+ 
+@@ -325,7 +326,7 @@ def prepare_images(
+             )
+ 
+         if use_depth_align:
+-            pil_image_dict[key] = img.cpu().numpy()
++            pil_image_dict[key] = (teacher_images[key] if teacher_images is not None else img).cpu().numpy()
+ 
+         if image_processor is None:
+             img = img.to(dtype) / 127.5 - 1.0 # to [-1, 1]
+diff --git a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/utils.py b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/utils.py
+index 1daf261..14e8a8a 100644
+--- a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/utils.py
++++ b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/utils.py
+@@ -372,7 +372,12 @@ class FeatureTransform:
+         return out_item
+ 
+ 
+-    def apply(self, item, policy_eval=False):
++    def apply(self, item, policy_eval=False, aug_context=None):
++        if policy_eval:
++            aug_context = None
++        if aug_context is not None and aug_context.config.get("instruction_swap", {}).get("enabled", True):
++            item = dict(item)
++            item["task"] = str(aug_context.rng.choice(aug_context.seen))
+         w_action = not policy_eval
+         if w_action:
+             item['action_is_pad'] = item[f"{self.org_features['actions'][0]}_is_pad"] if not len(self.actions_convert_from_state)>0 else item[f"{self.org_features['states'][0]}_is_pad"][1:]
+@@ -407,6 +412,14 @@ class FeatureTransform:
+ 
+         state = prepare_state(batch_dict, self.model_config.max_state_dim) 
+         actions = prepare_action(batch_dict, self.model_config.max_action_dim)
++        teacher_images, future_teacher_images = None, None
++        if aug_context is not None:
++            state = aug_context.perturb_state(state)  # relative action labels already computed
++            if not self.disabled_image_features:
++                student, teacher_images, future_student, future_teacher_images = aug_context.apply_pair(batch_dict["image"], batch_dict.get("future_image"))
++                batch_dict["image"] = student
++                if future_student:
++                    batch_dict["future_image"] = future_student
+         return_image_grid_thw = getattr(self.model_config, "return_image_grid_thw", False)
+         if not self.disabled_image_features:
+             (
+@@ -419,20 +432,22 @@ class FeatureTransform:
+                 self.processor.image_processor,
+                 batch_dict,
+                 image_keys=self.feature_config.images,
+-                train=self.image_augment and not policy_eval,
++                train=self.image_augment and not policy_eval and aug_context is None,
+                 use_depth_align=self.use_depth_align,
+                 return_image_grid_thw=return_image_grid_thw,
+                 return_augment_params=True,
++                teacher_images=teacher_images,
+             )
+             if self.use_future_image and len(batch_dict.get("future_image", {})) > 0:
+                 future_obs = {**batch_dict, "image": batch_dict["future_image"]}
+                 future_images, _, future_pil_images, _ = prepare_images(
+                     self.processor.image_processor, future_obs,
+                     image_keys=self.feature_config.images,
+-                    train=self.image_augment and not policy_eval,
++                    train=self.image_augment and not policy_eval and aug_context is None,
+                     use_depth_align=self.use_depth_align,
+                     return_image_grid_thw=False,
+                     augment_params=image_augment_params,
++                    teacher_images=future_teacher_images,
+                 )
+             else:
+                 future_images, future_pil_images = None, None
+diff --git a/repos/lingbot-vla-v2/lingbotvla/utils/arguments.py b/repos/lingbot-vla-v2/lingbotvla/utils/arguments.py
+index cfbc347..0082fd0 100644
+--- a/repos/lingbot-vla-v2/lingbotvla/utils/arguments.py
++++ b/repos/lingbot-vla-v2/lingbotvla/utils/arguments.py
+@@ -230,6 +230,7 @@ class DataArguments:
+             )
+         },
+     )
++    aug: dict = field(default_factory=dict, metadata={"help": "Optional deterministic VLA augmentation; profile defaults to none."})
+     image_augment: bool = field(
+         default=False,
+         metadata={

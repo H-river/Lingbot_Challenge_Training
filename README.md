@@ -94,3 +94,82 @@ bash train.sh /absolute/path/to/reviewed-clean-config.yaml
 `run_initial.sh` 是保存的原服务器短测入口，含单 A100/显存检查及 20 分钟上限；不是正式长训入口。恢复、HF 导出和新硬件验证需按各自范围单独完成。不要把早期 frozen-VLM 工具误当成本次全参冒烟路径。
 
 本次 GitHub 交付只完成代码整理、语法/哈希/敏感内容检查和上传，不新增训练、仿真或提交。训练完成后保存产物，及时检查云资源计费并按需释放。
+
+## 数据增广（V1 / V2）
+
+增广只作用于 dataloader；默认 `data.aug: {profile: none}`，原有 `image_augment`
+默认关闭。V1 开启颜色、几何和 seen 指令替换；V2 增加纹理和外任务干扰物。
+推理 `policy_eval=True` 无条件禁用全部新增广和指令替换。
+
+| 配置 | 默认启用 profile 时的值 | 行为 |
+|---|---|---|
+| `color.p` | 0.5 | 亮度 0.7–1.3、对比度 0.6–1.4、饱和度 0.5–1.5；HSV hue ±4/256，噪声 std 0–2/255，blur radius 0–0.5 |
+| `geometric` | p=0.3, min_area=0.90, max_shift=0.04 | 同宽高比裁剪再 resize，小幅反射边界平移 |
+| `texture` | p=0.3, regions=[table,wall] | 颜色距离、开闭运算、边缘保护、大连通区域及充分画面边界接触；保留原亮度，约 2–3 px 羽化 |
+| `distractor` | p=0.3, max_count=3, max_retries=20 | 只选其他任务 cutout；默认 camera_top；当前位置与未来帧的可贴区域取交集 |
+| `instruction_swap.enabled` | true | 只从本条轨迹经 SHA 验证的 seen 列表中抽取 |
+| `state_noise` | enabled=false, std=0 | 动作减 state 和归一化完成后，仅扰动模型输入 state |
+
+教师 `pil_images/future_pil_images` 仅作与学生相同的几何变换，不接收颜色、纹理、
+干扰物。`teacher_uses_clean=false` 会报错。三相机共享归一化几何参数，当前/未来帧
+共享全部参数；这保证每一视角学生/教师 patch 对齐，但不声称像素平移等价于真实
+多视角三维相机运动。每个样本的 RNG 从 `(train.seed, epoch, global sample index)`
+派生，seed/epoch 在数据加载器中传递，epoch 使用共享内存使 worker 可见。新 profile
+下数据错误直接报错，不使用上游的随机换样本重试。
+
+初始化时验证全部 50 个 manifest 与 2500 条原始 seen JSON、转换 provenance、
+LeRobot episode metadata。转换适配器按数字 episode 排序；每条现有 prompt 必须
+属于所映射原始 episode 的 seen 列表，任何错误终止。不会静默回退到固定指令。
+
+V2 使用 RoboTwin `assets/background_texture/seen` 素材存在规则灰区，**待主办方确认**；
+本任务由用户明确授权实现。解析后路径包含 `unseen` 段（包括 symlink）会硬性拒绝。
+`texture.source=procedural` 提供木纹、大理石、织物、瓷砖、条纹、棋盘格、Perlin 噪声和
+色块备用，不读取 seen 图片。Perlin 使用随机二维单位梯度与 quintic fade；程序色彩范围
+为保守手设值，未声称匹配 seen 库统计。两份待确认配置默认使用
+procedural；改成 `robotwin_seen` 即可启用素材。
+
+干扰物库只读经 SHA 校验的 release clean 首帧。提取桌面 mask 内封闭组件，过滤
+边界、下方区域、细长、暗色或缺少颜色信息的组件（因此也舍弃无彩色物体）。**这是保守启发式，不能保证与物体同色的机械臂部件
+均被排除**；必须审阅可视化和 mask 报告后再用于正式训练。无法区分桌面/墙面颜色
+时跳过墙面替换；也不宣称桌面 mask 对所有任务完美。
+
+### 构建和 CPU 验证
+
+仓库保留原始 vendored 源码。Dockerfile 在最后一次原始源码复制及
+`docker/verify_source.py` 验证后应用 `patches/dataloader_aug.patch`，再验证独立的
+`docs/patched_source_sha256.json`。本地应在隔离副本应用补丁：
+
+```bash
+python docker/verify_source.py
+git apply --check patches/dataloader_aug.patch
+git apply patches/dataloader_aug.patch
+python scripts/verify_aug_patch.py
+export LINGBOT_ROOT=/path/to/verified-clean-root
+export AUG_SOURCE="$PWD/repos/lingbot-vla-v2"
+export AUG_ORIGINAL_SOURCE=/path/to/pristine/lingbot-vla-v2
+export PYTHONPATH="$AUG_SOURCE"
+OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 python tests/test_dataloader_aug.py
+python scripts/build_distractor_library.py --root "$LINGBOT_ROOT" \
+  --source "$AUG_SOURCE" --output /persistent/augmentation/distractors
+python scripts/validate_aug_visuals.py --root "$LINGBOT_ROOT" \
+  --source "$AUG_SOURCE" --output /persistent/augmentation/visuals \
+  --library /persistent/augmentation/distractors \
+  --seen-dir "$LINGBOT_ROOT/repos/RoboTwin/assets/background_texture/seen" \
+  --texture-source robotwin_seen
+```
+
+所有输出目录要求不存在，避免覆盖历史证据。原始数据、纹理库、干扰物库和 checkpoint
+不入库；只提交用户明确要求的 10 张审查预览。测试依赖沿用固定训练环境（torch、
+torchvision、numpy、Pillow、OpenCV、h5py、pandas/pyarrow）。
+
+### 8k 增广续训尚不可直接启动
+
+完整复现链应为「基座 → 8k（实际原配置及 provenance）→ 增广继续训练」。
+`configs/train_8xA100_aug_v1.yaml` 和 V2 是 **BLOCKED 草稿**：3000 步、LR 5e-5 cosine
+至 1e-5、每 1000 步保存，均待用户确认；其余参数目前取仓库模板，不能当作实际 8k
+训练参数。8k 及其 provenance 的查找结果见 `AUG_REPORT.md`。
+
+现有 `run.sh resume` 会恢复优化器、调度器和步数，**不支持 weights-only**。
+原训练代码的 `model.model_path` 可作为新模型初始化入口，但 launcher 固定要求基座路径，
+因此仍需用户决定是否扩展 launcher，验证 8k 导出和来源后再启动新优化器训练。
+本任务没有修改训练循环、模型或 eval，也不启动正式训练。

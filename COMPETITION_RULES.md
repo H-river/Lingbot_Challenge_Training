@@ -143,6 +143,11 @@
 
 ## 6. 必须披露的内容（写进 README / config / reproduction_report）
 
+- 数据增广 V1/V2：颜色/几何、教师仅几何、样本 RNG、seen 逐轨迹校验、可选 state 噪声。
+- V2 seen 背景纹理：用户明确授权本次实现的规则灰区，待主办方确认；不是对第 3 节的普遍放宽。
+- 严禁读取 unseen 纹理；提供不读素材的 procedural 备用；干扰物只来自 release clean 首帧。
+- 披露 mask/机械臂过滤的启发式局限、实际吞吐量、8k provenance 缺口及未完成验证（AUG_REPORT.md）。
+
 - 训练方式、参数配置、模型改动、调优思路、完整的复现步骤
 - LoRA 等方法合并回基座后的权重形态
 - 引入的公开预训练模块：来源和使用方式

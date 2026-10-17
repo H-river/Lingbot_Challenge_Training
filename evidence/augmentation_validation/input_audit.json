@@ -1,0 +1,8 @@
+{
+  "tasks": 50,
+  "episodes_checked": 2500,
+  "mapping_failures": [],
+  "mapping_basis": "numeric episode order inserted by scripts/convert_clean.py; checked against all existing prompts",
+  "provenance_manifest_mismatch_tasks": [],
+  "passed": true
+}

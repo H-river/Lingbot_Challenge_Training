@@ -73,6 +73,11 @@ RUN PY="$LINGBOT_ENV/bin/python"; repo=repos/lingbot-vla-v2 \
 
 # --- the rest of this repository (scripts, configs, manifests, evidence, docs)
 COPY . .
+# Verify the final pristine COPY, then apply the isolated data-pipeline patch.
+RUN "$LINGBOT_ENV/bin/python" docker/verify_source.py \
+ && git apply --check patches/dataloader_aug.patch \
+ && git apply patches/dataloader_aug.patch \
+ && "$LINGBOT_ENV/bin/python" scripts/verify_aug_patch.py
 RUN printf '%s\n' \
       'export LINGBOT_ROOT=/root/lingbot_challenge' \
       'export LINGBOT_ENV=$LINGBOT_ROOT/envs/lingbotvla' \
