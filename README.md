@@ -1,4 +1,58 @@
-# LingBot Challenge Training
+# LingBot Challenge Training & Step2000 Replay
+
+训练部署、checkpoint 转换与历史 500 局 BF16 本地评测的代码。**不包含 checkpoint、训练数据、场景/RNG 数据包、密码或机器凭据。**
+
+## 同步范围（2026-10-18）
+
+- 同步服务器的 `run.sh`、`docker/`、`configs/train_8xA100.yaml`：检查、真实 batch 冒烟、正式训练及显式续训；每次运行保存实际配置与 provenance。
+- 同步服务器 500 局评测的 policy、client、转换器、调度及恢复脚本。历史脚本保留用于审计；推荐使用新的 `eval.sh` 严格回放入口。
+- 固定 RoboTwin `13c3c47ff4312dd62484bcd51be034af55c062d1`、cuRobo `d64c4b005459db10c5dd867d8b30a87d5bda9bdb`，LingBot 上游 revision 保持不变。
+- 已完成的历史结果：clean **127/250**，randomized **89/250**，总计 **216/500 (43.2%)**。详见 [原结果报告](reproduction/step2000/evidence/REPORT.md)。这些是历史结果，不是本次同步重新运行的结果。
+
+**复现边界：** 原 step2000 训练运行的 `run_config.yaml/run_provenance.json` 没有随 checkpoint 保存到本服务器，不能将 8×A100 模板冒充实际训练参数，也不能承诺从零训练生成相同 checkpoint。推理使用的 normalization 已记录并校验，但无法独立确证训练时使用的 normalization。500 局回放需要原权重和外部历史场景包；环境、场景哈希不匹配时直接失败，不静默换 seed，不保证跨硬件逐位相同成绩。
+
+## 训练
+
+完整资产、环境与 Docker 交付步骤见 [DEPLOY.md](DEPLOY.md)。本镜像只包含训练环境，**不包含 RoboTwin 渲染环境**。
+
+```bash
+# 构建需要 Docker BuildKit、网络和外部数据/模型；不启动训练。
+bash docker/build.sh
+bash run.sh check --full
+# 明确启动训练冒烟，并保留 checkpoint 供检查：
+KEEP_SMOKE=1 bash run.sh smoke
+# 根据实际确认的预算设置 MAX_STEPS；下例仅演示，不能声称是历史训练命令。
+MAX_STEPS=2000 MBS=4 GBS=1024 PRECISION=bf16 bash run.sh train
+```
+
+每次生成 `checkpoints/<run>.config/run_config.yaml` 和 `run_provenance.json`，与 checkpoint、日志一起保存在外部存储。另保留原生入口 `bash train.sh /absolute/path/to/reviewed-config.yaml`。禁止覆盖旧 run；不要用新的短调度代替原训练调度后声称复现了旧训练。
+
+## 历史 500 局评测
+
+见 [详细复现步骤](docs/step2000_reproduction.md)，包含外部依赖、场景包导出、DCP 转换、严格回放、恢复语义和已知异常。
+
+```bash
+# 在拥有原 results/step2000_bf16 的服务器上导出，不上传 GitHub：
+python3 reproduction/step2000/replay500.py export-bundle \
+  --history /root/lingbot_challenge/results/step2000_bf16 \
+  --destination /root/deliverables/step2000_replay_bundle
+python3 reproduction/step2000/replay500.py check-bundle \
+  --bundle /root/deliverables/step2000_replay_bundle
+# 完成文档中的环境与资产准备后：
+nohup bash eval.sh --execute \
+  --bundle /root/deliverables/step2000_replay_bundle \
+  --weights /root/deliverables/trained_ckpt/global_step_2000/hf_ckpt \
+  --output /root/lingbot_challenge/results/step2000_replay_01 \
+  > /root/lingbot_challenge/logs/step2000_replay_01.log 2>&1 < /dev/null &
+```
+
+回放参数固定：50 tasks × clean/seen 与 randomized/unseen × 5 局，BF16、chunk50、compile=False、不录像、每局 policy seed42。先执行一局完整 smoke（计入500），再启动任务队列；没有新增专家调用。与 base 比较只使用双方完成且场景、指令和 seed 匹配的案例。
+
+本次同步验证为：代码语法、CPU 输入/校验测试、服务器历史500场景包完整性核验；未启动新训练或 GPU eval，也未重新构建 Docker 镜像。原始代码快照哈希见 `reproduction/step2000/server_source_sha256.json`；新增入口的行为变更见复现文档。
+
+---
+
+# 历史训练准备记录
 
 固定源码、clean 数据准备、训练入口及真实冒烟记录。遵守 [COMPETITION_RULES.md](COMPETITION_RULES.md) 第 3、4 节：仅 release clean/seen 数据、允许的原始 `lingbot-vla-v2-6b` 基座，训练不调用仿真。这份规则来自用户，不代表已独立核验全部外部来源。
 
