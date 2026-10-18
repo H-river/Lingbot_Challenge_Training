@@ -264,6 +264,116 @@ class Contracts(unittest.TestCase):
                 self.assertEqual(pools,{'seen','unseen'})
             aug.oracle_unseen_files.cache_clear()
 
+    # ----------------------------- V2b -----------------------------
+    @staticmethod
+    def v2b_fixture(root):
+        import hashlib,json,cv2
+        from PIL import Image
+        cut=np.zeros((10,10,4),np.uint8);cut[...,:3]=[150,30,20];cut[...,3]=255
+        Image.fromarray(cut).save(root/'c.png')
+        (root/'manifest.json').write_text(json.dumps({'source':'release_clean_first_head_frames','items':[{'file':'c.png','task':'other','sha256':hashlib.sha256((root/'c.png').read_bytes()).hexdigest()}]}))
+        img=np.full((120,160,3),235,np.uint8);img[:25]=(200,200,225);cv2.circle(img,(110,85),10,(30,160,40),-1)
+        cams=['camera_top','camera_wrist_left','camera_wrist_right']
+        colors={c:{'table':np.array([235.,235,235]),'wall':np.array([200.,200,225])} for c in cams}
+        cfg={'profile':'v2','teacher_uses_clean':True,'color':{'p':0},'geometric':{'p':0},
+             'texture':{'p':1,'mode':'overlay','source':'procedural','regions':['table','wall']},
+             'distractor':{'p':1,'placement':'v2b','library_dir':str(root),'max_count':3,'cameras':cams,'near_object_p':.5,'idle_focus_p':0}}
+        return img,cams,colors,cfg
+
+    def test_v2b_default_configs_keep_old_path(self):
+        self.assertFalse(aug.SampleAugment(config('v2'),42,0,0,'unused','task').v2b_enabled())
+        c=config('v2');c['texture']={'p':0,'mode':'overlay'}
+        self.assertTrue(aug.SampleAugment(c,42,0,0,'unused','task').v2b_enabled())
+
+    def test_v2b_overlay_teacher_clean_temporal_and_whole_image(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            img,cams,colors,cfg=self.v2b_fixture(Path(tmp))
+            cfg['distractor']['p']=0
+            t={c:torch.from_numpy(img.transpose(2,0,1).copy()) for c in cams}
+            with patch.object(aug,'episode_colors',side_effect=AssertionError('overlay-only must not read HDF5')):
+                s,te,fs,ft=aug.SampleAugment(cfg,42,0,3,'unused','task').apply_pair(t,{k:v.clone() for k,v in t.items()})
+            for c in cams:
+                self.assertTrue(torch.equal(te[c],t[c]));self.assertTrue(torch.equal(s[c],fs[c]));self.assertTrue(torch.equal(te[c],ft[c]))
+                diff=(s[c].int()-t[c].int()).abs().sum(0)>0
+                self.assertGreater(diff.float().mean().item(),.9)            # texture covers the whole image, objects included
+
+    def test_overlay_formula_and_wrist_without_wall(self):
+        img=np.full((40,60,3),200,np.uint8);img[20:30,20:30]=50
+        tex={'table':np.full((256,256,3),100,np.uint8),'wall':np.full((256,256,3),10,np.uint8)}
+        out=aug.overlay_texture(img,tex,(None,0.0,.4,3.0)).astype(float)
+        lum=img.astype(float).mean(-1,keepdims=True)/img.mean()
+        self.assertTrue(np.allclose(out,np.clip(.6*img+.4*100*lum,0,255).astype(np.uint8),atol=1))
+        self.assertTrue(np.all(out[25,25]<out[5,5]))                       # dark object stays darker than background
+        top=aug.overlay_texture(img,tex,(0.5,0.0,.5,1.0))
+        self.assertLess(top[2,5].mean(),top[38,5].mean())                   # wall texture above the line
+        nowall=[aug.overlay_params(aug.sample_rng(1,0,i,'w'),'camera_wrist_left',{'wrist_wall_p':0.3})[0] is None for i in range(400)]
+        self.assertTrue(.6<np.mean(nowall)<.8)
+        heads=[aug.overlay_params(aug.sample_rng(1,0,i,'h'),'camera_top',{})[0] for i in range(100)]
+        self.assertTrue(all(.05<=y<=.35 for y in heads))
+
+    def test_idle_arm_detection(self):
+        T=10;arm=torch.zeros(T,12);grip=torch.zeros(T,2)
+        arm[:,6:]=torch.linspace(0,.5,T)[:,None]                             # right arm moves, left still
+        self.assertEqual(aug.detect_idle_arm({'action.arm.position':arm,'action.effector.position':grip},{}),'left')
+        g2=grip.clone();g2[5:,0]=.5                                          # left gripper closes -> not idle
+        self.assertIsNone(aug.detect_idle_arm({'action.arm.position':arm,'action.effector.position':g2},{}))
+        both=torch.zeros(T,12)
+        self.assertIsNone(aug.detect_idle_arm({'action.arm.position':both,'action.effector.position':grip},{}))
+        pad=torch.zeros(T,dtype=torch.bool);pad[6:]=True;moving_tail=torch.zeros(T,12);moving_tail[6:,:6]=1;moving_tail[:,6:]=arm[:,6:]
+        self.assertEqual(aug.detect_idle_arm({'action.arm.position':moving_tail,'action.effector.position':grip,'action_is_pad':pad},{}),'left')
+
+    def test_v2b_idle_focus_cameras_and_side(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            img,cams,colors,cfg=self.v2b_fixture(Path(tmp))
+            cfg['distractor'].update(p=0,idle_focus_p=1.0,max_count=4);cfg['texture']['p']=0
+            t={c:torch.from_numpy(img.transpose(2,0,1).copy()) for c in cams}
+            with patch.object(aug,'episode_colors',return_value=colors):
+                for i in range(20):
+                    a=aug.SampleAugment(cfg,42,0,i,'unused','task');a.idle_arm='left'
+                    s,_,_,_=a.apply_pair(t)
+                    self.assertTrue(torch.equal(s['camera_wrist_right'],t['camera_wrist_right']))   # active arm view untouched
+                    changed=((s['camera_top'].int()-t['camera_top'].int()).abs().sum(0)>0).numpy()
+                    self.assertFalse(changed[:,80+8:].any())   # objects in idle (left) half; only soft shadow may bleed a few px
+            a=aug.SampleAugment(cfg,42,0,0,'unused','task');a.idle_arm=None
+            with patch.object(aug,'episode_colors',return_value=colors):
+                s,_,_,_=a.apply_pair(t)
+            self.assertTrue(all(torch.equal(s[c],t[c]) for c in cams))                               # no idle arm, p=0 -> nothing
+
+    def test_v2b_distractor_textured_and_shadowed(self):
+        import cv2
+        img=np.full((60,80,3),230,np.uint8)
+        patch=np.zeros((10,10,4),np.uint8);patch[...,:3]=[150,30,20];patch[...,3]=255
+        shadowed=aug.paste_distractors_v2b(img,[(30,20,patch,0.4)])
+        self.assertLess(shadowed[30,35].mean(),229)                          # contact shadow under the object
+        self.assertTrue(np.array_equal(shadowed[22,35],[150,30,20]))
+        tex={'table':np.full((256,256,3),100,np.uint8)}
+        both=aug.overlay_texture(shadowed,tex,(None,0.0,.4,3.0))
+        self.assertFalse(np.array_equal(both[22,35],[150,30,20]))           # pasted object gets the overlay like real ones
+
+    def test_v2b_near_object_hard_negatives(self):
+        img=np.full((120,160,3),235,np.uint8);img[50:70,100:120]=(30,160,40)
+        table=~((img==[30,160,40]).all(-1))
+        with tempfile.TemporaryDirectory() as tmp:
+            _,_,_,cfg=self.v2b_fixture(Path(tmp))
+            d=cfg['distractor'];d.update(near_object_p=1.0,max_count=1)
+            dist=[]
+            for i in range(30):
+                for x,y,p,_ in aug.plan_distractors_v2b(d,'task','camera_top',[table],img,aug.sample_rng(2,0,i,'n')):
+                    dist.append(np.hypot(x+p.shape[1]/2-110,y+p.shape[0]/2-60))
+            self.assertGreater(len(dist),20);self.assertLess(np.median(dist),40)
+
+    def test_shortcut_probe_idle_frame_selection(self):
+        probe=module('shortcut_probe',Path(__file__).resolve().parents[1]/'scripts/shortcut_probe.py')
+        T=120;joint=np.zeros((T,14),np.float32)
+        joint[:,7:13]=np.linspace(0,1,T)[:,None]                           # right arm moves the whole time
+        joint[60:,0:6]=np.linspace(0,1,T-60)[:,None]                        # left arm starts moving at t=60
+        frames=probe.find_idle_frames(joint,chunk=50,stride=10)
+        self.assertIn((0,'left'),frames);self.assertIn((10,'left'),frames)
+        self.assertFalse(any(t+50>60 for t,s in frames if s=='left'))      # chunk must not overlap left-arm motion
+        self.assertFalse(any(s=='right' for _,s in frames))
+
     def test_library_reproducible(self):
         import hashlib,json,h5py,cv2
         builder=module('library_builder',Path(__file__).resolve().parents[1]/'scripts/build_distractor_library.py')

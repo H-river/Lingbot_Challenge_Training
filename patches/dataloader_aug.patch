@@ -23,10 +23,10 @@ index 6c34523..74cf469 100644
          sampler = StatefulDistributedSampler(
 diff --git a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/augment.py b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/augment.py
 new file mode 100644
-index 0000000..b526374
+index 0000000..a324db1
 --- /dev/null
 +++ b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/augment.py
-@@ -0,0 +1,487 @@
+@@ -0,0 +1,724 @@
 +"""Deterministic CPU-only augmentation; no simulator or evaluation data access."""
 +from functools import lru_cache
 +from pathlib import Path
@@ -383,6 +383,8 @@ index 0000000..b526374
 +            if config.get('profile') != 'v2':
 +                raise ValueError('oracle texture source is only defined for profile v2')
 +            texture_files(config['texture']['seen_dir']); oracle_unseen_files(config['texture']['unseen_dir'])
++        self._key = (seed, epoch, index)
++        self.idle_arm = None
 +        self.rng = sample_rng(seed,epoch,index)
 +        self.noise_seed = int(sample_rng(seed,epoch,index,'noise').integers(2**32))
 +        self.state_rng = sample_rng(seed,epoch,index,'state')
@@ -419,7 +421,19 @@ index 0000000..b526374
 +            masks['table'], masks['wall'] = fill_seam(masks['table'], masks['wall'], image, colors)
 +        return masks
 +
++    def observe_actions(self, item):
++        """Called with the normalized per-feature action chunk before padding (V2b idle-arm focus)."""
++        dc = self.config.get('distractor', {})
++        if self.config.get('profile') == 'v2' and dc.get('placement', 'v1') == 'v2b':
++            self.idle_arm = detect_idle_arm(item, dc.get('idle_arm', {}))
++
++    def v2b_enabled(self):
++        return (self.config.get('texture', {}).get('mode', 'mask') == 'overlay'
++                or self.config.get('distractor', {}).get('placement', 'v1') == 'v2b')
++
 +    def apply_pair(self, current, future=None):
++        if self.v2b_enabled():
++            return self._apply_pair_v2b(current, future)
 +        students, teachers, future_students, future_teachers = {},{},{},{}
 +        colors = episode_colors(self.raw_path) if self.textures or self.distractor_on else {}
 +        for camera, tensor in current.items():
@@ -449,6 +463,71 @@ index 0000000..b526374
 +                a,b = (students,teachers) if i==0 else (future_students,future_teachers)
 +                a[camera],b[camera] = tensor_image(student,tensor),tensor_image(teacher,tensor)
 +        return students,teachers,future_students,future_teachers
++
++    def _apply_pair_v2b(self, current, future=None):
++        """V2b path. Texture: 'mask' (as before) or 'overlay' (segmentation-free).
++        Distractors: 'v1' (head only) or 'v2b' (all cameras, near objects, idle-arm focus,
++        contact shadow). Order for overlay: distractors -> texture overlay (so pasted objects
++        are textured like real ones) -> geometry -> colour. Teacher: geometry only."""
++        tc, dc = self.config.get('texture', {}), self.config.get('distractor', {})
++        overlay = tc.get('mode', 'mask') == 'overlay'
++        v2b_place = dc.get('placement', 'v1') == 'v2b'
++        focus = None
++        if v2b_place and self.config.get('profile') == 'v2' and self.idle_arm is not None:
++            if sample_rng(*self._key, 'idle').random() < dc.get('idle_focus_p', 0.0):
++                focus = self.idle_arm
++        distract = self.distractor_on or focus is not None
++        need_colors = distract or (self.textures and not overlay)
++        colors = episode_colors(self.raw_path) if need_colors else {}
++        if focus is not None:
++            cameras = {HEAD_CAMERA, WRIST_CAMERAS[focus]}
++        else:
++            cameras = set(dc.get('cameras', [HEAD_CAMERA]))
++        students, teachers, future_students, future_teachers = {}, {}, {}, {}
++        for camera, tensor in current.items():
++            images = [uint8_hwc(tensor)]
++            if future and camera in future:
++                images.append(uint8_hwc(future[camera]))
++            cam_colors = colors.get(camera, {})
++            surf = [self.surface_masks(camera, im, cam_colors) for im in images] if (self.textures and not overlay) else None
++            placements = []
++            if distract and camera in cameras and 'table' in cam_colors:
++                if v2b_place:
++                    table = [region_mask(im, cam_colors['table']) for im in images]
++                    placements = plan_distractors_v2b(dc, self.task, camera, table, images[0],
++                                                      sample_rng(*self._key, f'distractor:{camera}'), focus)
++                else:
++                    masks = surf or [{'table': region_mask(im, cam_colors['table'])} for im in images]
++                    placements = plan_distractors(dc, self.task, masks, self.rng)
++            ov = overlay_params(sample_rng(*self._key, f'overlay:{camera}'), camera, tc.get('overlay', {})) \
++                if (self.textures and overlay) else None
++            for i, im in enumerate(images):
++                teacher = geometry(im, self.geom) if self.geom else im.copy()
++                student = im.copy()
++                if surf is not None:
++                    for region, texture in self.textures.items():
++                        if region not in surf[i]:
++                            continue
++                        if region == 'wall' and np.linalg.norm(cam_colors['wall'] - cam_colors['table']) < 24:
++                            continue
++                        mask = surf[i][region]
++                        alpha = cv2.GaussianBlur(mask.astype(np.float32), (0, 0), 1) * mask
++                        tex = cv2.resize(texture, (im.shape[1], im.shape[0])).astype(np.float32)
++                        illumination = im.mean(-1, keepdims=True) / max(1, float(cam_colors[region].mean()))
++                        student = np.clip(student * (1 - alpha[..., None]) + tex * illumination * alpha[..., None], 0, 255).astype(np.uint8)
++                if v2b_place:
++                    student = paste_distractors_v2b(student, placements)
++                else:
++                    student = paste_distractors(student, [p[:3] for p in placements])
++                if ov is not None:
++                    student = overlay_texture(student, self.textures, ov)
++                if self.geom:
++                    student = geometry(student, self.geom)
++                if self.color:
++                    student = color_image(student, self.color, self.noise_seed)
++                a, b = (students, teachers) if i == 0 else (future_students, future_teachers)
++                a[camera], b[camera] = tensor_image(student, tensor), tensor_image(teacher, tensor)
++        return students, teachers, future_students, future_teachers
 +
 +    def perturb_state(self,state):
 +        config = self.config.get('state_noise',{})
@@ -514,6 +593,164 @@ index 0000000..b526374
 +        roi=image[y:y+h,x:x+w]
 +        image[y:y+h,x:x+w]=np.clip(roi*(1-a)+patch[...,:3]*a,0,255).astype(np.uint8)
 +    return image
++
++
++# ---------------------------------------------------------------------------
++# V2b: segmentation-free texture overlay + shortcut-breaking distractors.
++# Motivation (observed in evaluation): the clean-trained policy learned
++# "non-white thing in front of the gripper => move/grasp". These samples show
++# textures and extra objects in front of the robot while the demonstrated action
++# (the label) ignores them, so presence of objects/texture stops predicting motion.
++# ---------------------------------------------------------------------------
++HEAD_CAMERA = 'camera_top'
++WRIST_CAMERAS = {'left': 'camera_wrist_left', 'right': 'camera_wrist_right'}
++
++
++def overlay_params(rng, camera, oc):
++    """Per-camera random wall/table split line and blend strength (no segmentation)."""
++    alpha = float(rng.uniform(*oc.get('alpha', (0.2, 0.5))))
++    tilt = float(np.deg2rad(rng.uniform(-oc.get('tilt_deg', 5), oc.get('tilt_deg', 5))))
++    if camera == HEAD_CAMERA:
++        y0 = float(rng.uniform(*oc.get('head_line', (0.05, 0.35))))
++    elif rng.random() < oc.get('wrist_wall_p', 0.3):
++        y0 = float(rng.uniform(*oc.get('wrist_line', (0.0, 0.5))))
++    else:
++        y0 = None                                   # wrist view usually sees only table
++    return y0, tilt, alpha, float(oc.get('feather', 3))
++
++
++def overlay_texture(image, textures, params):
++    """Blend a wall texture above a random line and a table texture below it over the
++    WHOLE image. Texture is modulated by the image's own luminance so shading, edges
++    and objects stay visible: out = (1-a)*img + a*tex*lum."""
++    y0, tilt, alpha, feather = params
++    h, w = image.shape[:2]
++    table = textures.get('table', next(iter(textures.values())))
++    tex = cv2.resize(table, (w, h)).astype(np.float32)
++    if y0 is not None and 'wall' in textures:
++        wall = cv2.resize(textures['wall'], (w, h)).astype(np.float32)
++        yy, xx = np.mgrid[:h, :w].astype(np.float32)
++        boundary = y0 * h + np.tan(tilt) * (xx - w / 2)
++        above = 1.0 / (1.0 + np.exp(np.clip((yy - boundary) / max(feather, 1e-3), -50, 50)))
++        tex = above[..., None] * wall + (1 - above[..., None]) * tex
++    img = image.astype(np.float32)
++    lum = img.mean(-1, keepdims=True) / max(float(img.mean()), 1.0)
++    return np.clip((1 - alpha) * img + alpha * tex * lum, 0, 255).astype(np.uint8)
++
++
++def object_anchors(image, table_mask):
++    """Boundary pixels of coloured, non-table blobs (likely task objects; arms are mostly
++    achromatic) with the outward direction from their blob centroid. Boundary, not interior,
++    so 'near' placements land beside the object rather than on it."""
++    chroma = image.max(-1).astype(np.int16) - image.min(-1).astype(np.int16)
++    blob = ((chroma > 40) & (image.mean(-1) > 50) & ~table_mask).astype(np.uint8)
++    edge = blob.astype(bool) & ~cv2.erode(blob, np.ones((3, 3), np.uint8)).astype(bool)
++    _, labels, _, centroids = cv2.connectedComponentsWithStats(blob)
++    points = np.argwhere(edge)
++    if len(points) == 0:
++        return points, np.zeros(0)
++    cx, cy = centroids[labels[points[:, 0], points[:, 1]]].T
++    outward = np.arctan2(points[:, 0] - cy, points[:, 1] - cx)
++    return points, outward
++
++
++def plan_distractors_v2b(config, task, camera, masks, image, rng, focus=None):
++    """Distractors on any configured camera. Optional placement near existing objects
++    (hard negatives) and, under idle-arm focus, inside the idle arm's half of the head view."""
++    root, library = distractor_library(config['library_dir'])
++    candidates = [e for e in library if e['task'] != task]
++    if not candidates or not masks:
++        return []
++    allowed = np.logical_and.reduce([m for m in masks])
++    allowed = cv2.erode(allowed.astype(np.uint8), np.ones((7, 7), np.uint8)).astype(bool)
++    h, w = allowed.shape
++    if focus is not None and camera == HEAD_CAMERA:
++        side = np.zeros_like(allowed)
++        side[:, :w // 2] = focus == 'left'
++        side[:, w // 2:] = focus == 'right'
++        allowed &= side
++    anchors, outward = object_anchors(image, masks[0])
++    lo, hi = (1.0, 1.0) if camera == HEAD_CAMERA else tuple(config.get('wrist_scale', (1.5, 3.0)))
++    placements = []
++    for _ in range(int(rng.integers(1, config.get('max_count', 4) + 1))):
++        entry = candidates[int(rng.integers(len(candidates)))]
++        source = read_cutout(str(root / entry['file']))
++        base = rng.uniform(.5, 1.2) * w / 320 * rng.uniform(lo, hi)
++        flip = rng.random() < .5
++        near = len(anchors) > 0 and rng.random() < config.get('near_object_p', 0.5)
++        shadow = float(rng.uniform(.25, .45)) if config.get('shadow', True) else 0.0
++        retries = config.get('max_retries', 20)
++        placed = False
++        # Free table area is small in close-up wrist views: retry at 70% and 50% size.
++        for shrink in (1.0, 0.7, 0.5):
++            pw, ph = max(2, round(source.shape[1] * base * shrink)), max(2, round(source.shape[0] * base * shrink))
++            if pw >= w or ph >= h:
++                continue
++            patch = cv2.resize(source, (pw, ph))
++            if flip:
++                patch = patch[:, ::-1].copy()
++            support = patch[..., 3] > 0
++            for _ in range(max(1, retries // 3)):
++                if near:
++                    k = int(rng.integers(len(anchors)))
++                    ay, ax = anchors[k]
++                    # outward from the object (+-90 deg); +4 px clears the 3 px erosion margin
++                    angle = outward[k] + rng.uniform(-np.pi / 2, np.pi / 2)
++                    dist = rng.uniform(.6, 1.5) * max(pw, ph) + 4
++                    x, y = int(ax + dist * np.cos(angle) - pw / 2), int(ay + dist * np.sin(angle) - ph / 2)
++                    if x < 0 or y < 0 or x + pw > w or y + ph > h:
++                        continue
++                else:
++                    x, y = int(rng.integers(w - pw)), int(rng.integers(h - ph))
++                roi = allowed[y:y + ph, x:x + pw]
++                if support.any() and np.all(roi[support]):
++                    placements.append((x, y, patch, shadow))
++                    roi[support] = False
++                    placed = True
++                    break
++            if placed:
++                break
++    return placements
++
++
++def paste_distractors_v2b(image, placements):
++    """Paste cutouts with a soft contact shadow so 'floating sticker' is not a cue."""
++    out = image.astype(np.float32)
++    H, W = out.shape[:2]
++    for x, y, patch, shadow in placements:
++        h, w = patch.shape[:2]
++        if shadow > 0:
++            m = np.zeros((H, W), np.float32)
++            cv2.ellipse(m, (int(x + w / 2), int(y + h * 0.92)), (max(1, int(w * 0.5)), max(1, int(h * 0.18))), 0, 0, 360, 1.0, -1)
++            m = cv2.GaussianBlur(m, (0, 0), max(1.0, h * 0.08))
++            out *= (1 - shadow * m)[..., None]
++        a = patch[..., 3:4].astype(np.float32) / 255
++        roi = out[y:y + h, x:x + w]
++        out[y:y + h, x:x + w] = roi * (1 - a) + patch[..., :3] * a
++    return np.clip(out, 0, 255).astype(np.uint8)
++
++
++def detect_idle_arm(item, config):
++    """'left'/'right' if exactly one arm (joints + gripper) stays still over the valid
++    part of the action chunk, else None. Uses normalized release actions only."""
++    arm = item.get(config.get('arm_key', 'action.arm.position'))
++    grip = item.get(config.get('gripper_key', 'action.effector.position'))
++    if arm is None or grip is None:
++        return None
++    arm, grip = torch.as_tensor(arm).float(), torch.as_tensor(grip).float()
++    pad = item.get('action_is_pad')
++    if pad is not None:
++        valid = ~torch.as_tensor(pad).bool()
++        arm, grip = arm[valid], grip[valid]
++    if arm.ndim != 2 or arm.shape[0] < 2 or grip.ndim != 2 or grip.shape[-1] < 2:
++        return None
++    thr, half = float(config.get('threshold', 0.05)), arm.shape[-1] // 2
++
++    def still(joints, gripper):
++        return bool((joints - joints[0]).abs().max() < thr and (gripper - gripper[0]).abs().max() < thr)
++
++    left, right = still(arm[:, :half], grip[:, 0]), still(arm[:, half:], grip[:, 1])
++    return 'left' if left and not right else 'right' if right and not left else None
 diff --git a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/base_dataset.py b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/base_dataset.py
 index 71d62a0..ddd5aa6 100644
 --- a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/base_dataset.py
@@ -612,7 +849,7 @@ index 05fe43f..450be15 100644
          if image_processor is None:
              img = img.to(dtype) / 127.5 - 1.0 # to [-1, 1]
 diff --git a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/utils.py b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/utils.py
-index 1daf261..14e8a8a 100644
+index 1daf261..098d756 100644
 --- a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/utils.py
 +++ b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/utils.py
 @@ -372,7 +372,12 @@ class FeatureTransform:
@@ -629,7 +866,16 @@ index 1daf261..14e8a8a 100644
          w_action = not policy_eval
          if w_action:
              item['action_is_pad'] = item[f"{self.org_features['actions'][0]}_is_pad"] if not len(self.actions_convert_from_state)>0 else item[f"{self.org_features['states'][0]}_is_pad"][1:]
-@@ -407,6 +412,14 @@ class FeatureTransform:
+@@ -399,6 +404,8 @@ class FeatureTransform:
+ 
+         if self.normalizer is not None:
+             item = self.normalizer.normalize(item)
++        if aug_context is not None and w_action:
++            aug_context.observe_actions(item)  # V2b idle-arm detection; no-op otherwise
+ 
+         if self.return_item_befor_padding:
+             return item
+@@ -407,6 +414,14 @@ class FeatureTransform:
  
          state = prepare_state(batch_dict, self.model_config.max_state_dim) 
          actions = prepare_action(batch_dict, self.model_config.max_action_dim)
@@ -644,7 +890,7 @@ index 1daf261..14e8a8a 100644
          return_image_grid_thw = getattr(self.model_config, "return_image_grid_thw", False)
          if not self.disabled_image_features:
              (
-@@ -419,20 +432,22 @@ class FeatureTransform:
+@@ -419,20 +434,22 @@ class FeatureTransform:
                  self.processor.image_processor,
                  batch_dict,
                  image_keys=self.feature_config.images,
