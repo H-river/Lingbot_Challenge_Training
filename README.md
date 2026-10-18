@@ -141,6 +141,14 @@ place_container_plate 的玻璃碗）在头部视角会透出纹理，边缘保�
 mask 之间（到桌面距离 + 到墙面距离 ≤ 28 px）且颜色接近任一表面（距离 < 60）的像素，
 分配给较近的表面；机械臂、物体与两种表面颜色差得远，不受影响。
 
+**V3：ORACLE 对照实验（禁止提交）。** `configs/train_8xA100_aug_v3_ORACLE.yaml` 与 V2 完全相同，
+只把纹理池扩大为 seen ∪ unseen（unseen 是 RoboTwin **评测**用纹理）。同一样本在 V2/V3 下的所有随机决定
+（颜色、几何、是否贴纹理/干扰物）完全一致，只有抽到的纹理图来自更大的池。用途：V3 − V2 衡量「见过测试纹理」
+能带来多少 random 提升，从而判断剩余差距是否主要来自纹理分布。**用评测素材训练的模型不能用于任何提交。**
+防护：数据加载和 launcher 都要求 `LINGBOT_UNSEEN_TEXTURE_ORACLE=NOT_FOR_SUBMISSION`；launcher 要求 output_dir
+名称含 `ORACLE`（非 oracle 运行反过来禁止含 `ORACLE`），并在旁边写 `<output_dir>.ORACLE_NOT_FOR_SUBMISSION`；
+指令、干扰物和其它所有路径仍由 `safe_path` 拒绝 unseen。不要从 V3 checkpoint 导出提交版本或在其上继续训练提交模型。
+
 干扰物库只读经 SHA 校验的 release clean 首帧。提取桌面 mask 内封闭组件，过滤
 边界、下方区域、细长、暗色或缺少颜色信息的组件（因此也舍弃无彩色物体）。**这是保守启发式，不能保证与物体同色的机械臂部件
 均被排除**；必须审阅可视化和 mask 报告后再用于正式训练。无法区分桌面/墙面颜色

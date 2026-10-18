@@ -218,6 +218,52 @@ class Contracts(unittest.TestCase):
         self.assertFalse(np.any((t|w)[44:64,72:88]))                # arm untouched
         self.assertFalse(np.any(t&w))
 
+    @staticmethod
+    def texture_dirs(root):
+        from PIL import Image
+        dirs={}
+        for name,colour in (('seen',(200,30,30)),('unseen',(30,30,200))):
+            d=root/'background_texture'/name;d.mkdir(parents=True)
+            for i in range(2):Image.fromarray(np.full((16,16,3),colour,np.uint8)).save(d/f'{i}.png')
+            dirs[name]=str(d)
+        return dirs
+
+    def test_oracle_requires_opt_in_and_keeps_other_guards(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            d=self.texture_dirs(Path(tmp))
+            c=config('v2');c['texture']={'p':1,'source':aug.ORACLE_SOURCE,'seen_dir':d['seen'],'unseen_dir':d['unseen']}
+            aug.oracle_unseen_files.cache_clear();aug.read_oracle_texture.cache_clear()
+            with patch.dict(os.environ,{},clear=False):
+                os.environ.pop(aug.ORACLE_ENV,None)
+                with self.assertRaises(PermissionError):aug.SampleAugment(c,42,0,0,'unused','task')
+                with self.assertRaises(PermissionError):aug.read_oracle_texture(d['unseen']+'/0.png')
+            with patch.dict(os.environ,{aug.ORACLE_ENV:'yes'}):
+                aug.oracle_unseen_files.cache_clear()
+                with self.assertRaises(PermissionError):aug.SampleAugment(c,42,0,0,'unused','task')
+            with patch.dict(os.environ,{aug.ORACLE_ENV:aug.ORACLE_TOKEN}):
+                with self.assertRaises(ValueError):aug.texture_files(d['unseen'])          # seen loader still rejects unseen
+                with self.assertRaises(ValueError):aug.safe_path(d['unseen'])              # global guard unchanged
+                bad=dict(c);bad['profile']='v1'
+                with self.assertRaises(ValueError):aug.SampleAugment(bad,42,0,0,'unused','task')
+            aug.oracle_unseen_files.cache_clear()
+
+    def test_oracle_pool_and_v2_alignment(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            d=self.texture_dirs(Path(tmp))
+            v2=config('v2');v2['texture']={'p':.3,'source':'robotwin_seen','seen_dir':d['seen']};v2['distractor']={'p':0}
+            v3=copy.deepcopy(v2);v3['texture'].update(source=aug.ORACLE_SOURCE,unseen_dir=d['unseen'])
+            with patch.dict(os.environ,{aug.ORACLE_ENV:aug.ORACLE_TOKEN}):
+                aug.oracle_unseen_files.cache_clear()
+                pools=set()
+                for i in range(200):
+                    a,b=aug.SampleAugment(v2,42,0,i,'unused','task'),aug.SampleAugment(v3,42,0,i,'unused','task')
+                    self.assertEqual((a.geom,a.color,a.distractor_on,bool(a.textures)),(b.geom,b.color,b.distractor_on,bool(b.textures)))
+                    for t in b.textures.values():pools.add('unseen' if t[...,2].mean()>t[...,0].mean() else 'seen')
+                self.assertEqual(pools,{'seen','unseen'})
+            aug.oracle_unseen_files.cache_clear()
+
     def test_library_reproducible(self):
         import hashlib,json,h5py,cv2
         builder=module('library_builder',Path(__file__).resolve().parents[1]/'scripts/build_distractor_library.py')

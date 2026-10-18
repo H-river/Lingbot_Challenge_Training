@@ -138,3 +138,14 @@ LR 5e-5 -> 1e-5 cosine、3000 steps、每 1000 保存均标为待用户确认，
   仅用于对比 mask 行为，不代表正式训练的素材和分辨率。正式配置下须在服务器上用 `scripts/validate_aug_visuals.py`
   （`--texture-source robotwin_seen`）重新生成可视化并复查 mask 覆盖率。
 - 单张 320×240 图 mask 计算（CPU，缓存清空）：保守 mask 约 4 ms，阴影感知 mask 约 11.6 ms（含保守 mask）。只作用于头部相机，按纹理概率 0.3 摊到每个样本约 +9 ms，相对 V2 约 +10%。完整训练吞吐量仍须在 GPU 冒烟时测量。
+
+## 2026-10-18 V3：ORACLE 对照实验（禁止提交）
+
+用户要求的控制变量实验：V3 = V2 + 纹理池扩大为 seen ∪ unseen（评测纹理）。V3 − V2 衡量见过测试纹理的收益。
+- 实现：`texture.source: robotwin_seen_plus_unseen_ORACLE`，在两个池的并集上均匀抽一张，只消耗一次 RNG，
+  因此与 V2 的逐样本随机决定完全一致（有测试）。仍使用 profile v2。
+- 防护：数据加载与 launcher 双重要求 `LINGBOT_UNSEEN_TEXTURE_ORACLE=NOT_FOR_SUBMISSION`；output_dir 必须含
+  `ORACLE`、非 oracle 运行禁止含 `ORACLE`；launcher 写旁路标记文件；unseen 目录内 symlink 逃逸被拒绝；
+  `safe_path`、seen 纹理加载、指令与干扰物路径对 unseen 的拒绝保持不变（有测试）。
+- 新增 2 项测试（未开启 opt-in 拒绝、其它 unseen 防护不变、仅 v2、并集抽样覆盖两个池、与 V2 逐样本对齐）。
+- 训练/评测时 V3 的结果只能作为诊断依据，不得进入提交、README 成绩或复现链。
