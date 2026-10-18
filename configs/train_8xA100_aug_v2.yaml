@@ -15,13 +15,15 @@ data:
   aug:
     profile: v2
     teacher_uses_clean: true
-    color: {p: 0.5}
+    color: {p: 0.5, brightness: [0.75, 1.1], contrast: [0.6, 1.4], saturation: [0.5, 1.5]}
     geometric: {p: 0.3, min_area: 0.90, max_shift: 0.04}
     texture:
       p: 0.3
-      source: procedural
+      source: robotwin_seen   # user decision; rule grey area, disclosed. procedural = fallback
       seen_dir: /root/lingbot_challenge/repos/RoboTwin/assets/background_texture/seen
       regions: [table, wall]
+      shadow_aware_cameras: [camera_top]   # wrist cameras stay conservative (metal objects at close range)
+      fill_seam: true
     distractor:
       p: 0.3
       library_dir: /root/deliverables/dataloader_aug_validation/distractors_v2

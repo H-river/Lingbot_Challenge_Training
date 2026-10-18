@@ -23,10 +23,10 @@ index 6c34523..74cf469 100644
          sampler = StatefulDistributedSampler(
 diff --git a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/augment.py b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/augment.py
 new file mode 100644
-index 0000000..bcb2df7
+index 0000000..19a5d17
 --- /dev/null
 +++ b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/augment.py
-@@ -0,0 +1,352 @@
+@@ -0,0 +1,432 @@
 +"""Deterministic CPU-only augmentation; no simulator or evaluation data access."""
 +from functools import lru_cache
 +from pathlib import Path
@@ -39,6 +39,12 @@ index 0000000..bcb2df7
 +import numpy as np
 +import torch
 +from PIL import Image, ImageEnhance, ImageFilter
++
++
++BRIGHTNESS = (0.75, 1.1)
++CONTRAST = (0.6, 1.4)
++SATURATION = (0.5, 1.5)
++SHADOW_AWARE_CAMERAS = ('camera_top',)
 +
 +
 +def safe_path(path):
@@ -154,6 +160,67 @@ index 0000000..bcb2df7
 +            out[component] = 1
 +    # Closing must never add protected object pixels; erode for a safety margin.
 +    return cv2.erode(out * raw, kernel).astype(bool)
++
++
++def shadow_region_mask(image, color, lo=0.5, hi=1.08, chroma_tol=0.035, canny=(60, 150), min_seed=20):
++    """Conservative mask grown into shadows of the same surface.
++
++    A shadow is the surface colour at lower brightness: same chromaticity, luminance
++    ratio in [lo, hi]. Candidate shadow regions are split only at HARD edges (object
++    outlines), so soft shadow boundaries do not separate a shadow from the lit surface.
++    A candidate component is accepted only if it overlaps the conservative mask, i.e.
++    it is connected to confirmed lit surface. Grey/metal objects enclosed by hard
++    edges form separate components with no overlap and are never textured.
++    """
++    return _shadow_region_mask(image.shape, image.tobytes(), tuple(float(x) for x in color),
++                               lo, hi, chroma_tol, tuple(canny), min_seed).copy()
++
++
++@lru_cache(maxsize=128)
++def _shadow_region_mask(shape, pixels, color, lo, hi, chroma_tol, canny, min_seed):
++    image = np.frombuffer(pixels, dtype=np.uint8).reshape(shape)
++    strict = region_mask(image, color)
++    img = image.astype(np.float32)
++    color = np.asarray(color, np.float32)
++    chroma = img / np.maximum(img.sum(-1, keepdims=True), 1)
++    ratio = img.mean(-1) / max(float(color.mean()), 1)
++    raw = ((np.linalg.norm(chroma - color / max(float(color.sum()), 1), axis=-1) < chroma_tol)
++           & (ratio > lo) & (ratio < hi)).astype(np.uint8)
++    kernel = np.ones((3, 3), np.uint8)
++    cand = cv2.morphologyEx(cv2.morphologyEx(raw, cv2.MORPH_OPEN, kernel), cv2.MORPH_CLOSE, kernel) * raw
++    hard = cv2.Canny(cv2.cvtColor(image, cv2.COLOR_RGB2GRAY), *canny)
++    cand[cv2.dilate(hard, kernel) > 0] = 0
++    n, labels = cv2.connectedComponents(cand)
++    if n <= 1:
++        return strict
++    overlap = np.bincount(labels[strict], minlength=n)
++    keep = overlap >= min_seed
++    keep[0] = False
++    grown = cv2.erode((keep[labels] & raw.astype(bool)).astype(np.uint8), kernel).astype(bool)
++    return strict | grown
++
++
++def fill_seam(table, wall, image, colors, band=14, tolerance=60):
++    """Assign the untextured band between wall and table masks to the nearer surface.
++
++    The band comes from edge removal + erosion at the wall/table boundary. Only pixels
++    lying BETWEEN the masks (d_table + d_wall <= 2*band, i.e. seams up to ~2*band wide)
++    and colour-close to one of the surfaces are filled; arms and objects (far from both
++    colours) are untouched.
++    """
++    if not table.any() or not wall.any():
++        return table, wall
++    d_table = cv2.distanceTransform((~table).astype(np.uint8), cv2.DIST_L2, 3)
++    d_wall = cv2.distanceTransform((~wall).astype(np.uint8), cv2.DIST_L2, 3)
++    gap = (d_table + d_wall <= 2 * band) & ~table & ~wall
++    if not gap.any():
++        return table, wall
++    img = image.astype(np.float32)
++    close = ((np.linalg.norm(img - np.asarray(colors['table'], np.float32), axis=-1) < tolerance)
++             | (np.linalg.norm(img - np.asarray(colors['wall'], np.float32), axis=-1) < tolerance))
++    gap &= close
++    to_table = gap & (d_table <= d_wall)
++    return table | to_table, wall | (gap & ~to_table)
 +
 +
 +@lru_cache(maxsize=256)
@@ -274,7 +341,9 @@ index 0000000..bcb2df7
 +        if rng.random() < g.get('p',.3):
 +            self.geom = (math.sqrt(rng.uniform(g.get('min_area',.9),1)),rng.random(),rng.random(),*rng.uniform(-g.get('max_shift',.04),g.get('max_shift',.04),2))
 +        if rng.random() < c.get('p',.5):
-+            self.color = (rng.uniform(.7,1.3),rng.uniform(.6,1.4),rng.uniform(.5,1.5),int(rng.integers(-4,5)),rng.uniform(0,2),rng.uniform(0,.5))
++            # RoboTwin clean scenes are near-white, so brightness above ~1.1 clips large regions.
++            (b0,b1),(c0,c1),(s0,s1) = (c.get('brightness',BRIGHTNESS),c.get('contrast',CONTRAST),c.get('saturation',SATURATION))
++            self.color = (rng.uniform(b0,b1),rng.uniform(c0,c1),rng.uniform(s0,s1),int(rng.integers(-4,5)),rng.uniform(0,2),rng.uniform(0,.5))
 +        # Every operation gets its own Bernoulli decision, including inactive V1 operations.
 +        tc, dc = config.get('texture',{}), config.get('distractor',{})
 +        texture_on, self.distractor_on = rng.random() < tc.get('p',.3), rng.random() < dc.get('p',.3)
@@ -284,6 +353,17 @@ index 0000000..bcb2df7
 +        if not config.get('teacher_uses_clean',True):
 +            raise ValueError('This pipeline requires geometry-only teachers')
 +
++    def surface_masks(self, camera, image, colors):
++        """Table/wall masks; shadow-aware on configured cameras, conservative elsewhere."""
++        tc = self.config.get('texture', {})
++        shadow = camera in tc.get('shadow_aware_cameras', SHADOW_AWARE_CAMERAS)
++        masks = {region: (shadow_region_mask if shadow else region_mask)(image, color)
++                 for region, color in colors.items()}
++        if (tc.get('fill_seam', True) and 'table' in masks and 'wall' in masks
++                and np.linalg.norm(np.asarray(colors['wall']) - np.asarray(colors['table'])) >= 24):
++            masks['table'], masks['wall'] = fill_seam(masks['table'], masks['wall'], image, colors)
++        return masks
++
 +    def apply_pair(self, current, future=None):
 +        students, teachers, future_students, future_teachers = {},{},{},{}
 +        colors = episode_colors(self.raw_path) if self.textures or self.distractor_on else {}
@@ -291,7 +371,7 @@ index 0000000..bcb2df7
 +            images = [uint8_hwc(tensor)]
 +            if future and camera in future:
 +                images.append(uint8_hwc(future[camera]))
-+            masks = [{region:region_mask(im,color) for region,color in colors.get(camera,{}).items()} for im in images]
++            masks = [self.surface_masks(camera, im, colors.get(camera, {})) for im in images]
 +            dc = self.config.get("distractor",{})
 +            placements = plan_distractors(dc,self.task,masks,self.rng) if self.distractor_on and camera in dc.get("cameras",["camera_top"]) else []
 +            for i,im in enumerate(images):

@@ -111,3 +111,30 @@ LR 5e-5 -> 1e-5 cosine、3000 steps、每 1000 保存均标为待用户确认，
 2. 在有可用 GPU 的实例执行两版各 20 步真实模型前后向，之后才能评价训练可用性。
 3. 如需正式使用 V2，审查剩余近色/遮挡 mask 风险及完整训练吞吐量；当前 CPU 开销未达 20% 目标。
 4. 主办方确认 seen 纹理例外；未确认可用 procedural 配置，不能把用户授权当作比赛规则批准。
+
+## 2026-10-18 修订（V2 纹理质量 + 亮度）
+
+由用户确认后修改，改动只在 `augment.py`（重新生成 patch 和哈希清单）、两份配置、测试与文档。
+
+1. **亮度收紧到 0.75–1.1**，对比度/饱和度范围不变，三者均改为可配置（`color.brightness/contrast/saturation`）。
+   原因：RoboTwin clean 场景接近白色，上游 1.3 会大面积过曝（见 put_object_cabinet 原预览）。
+2. **头部相机阴影感知 mask**（`texture.shadow_aware_cameras: [camera_top]`）。原保守 mask 把机械臂阴影留成亮白剪影，
+   与 randomized 场景中阴影落在纹理上的样子相反。新 mask 以原保守 mask 为种子，向「同色度、亮度 0.5–1.08 倍」的
+   候选区域生长，只在硬边缘（Canny 60/150）处切开；被硬边缘围住、与种子无重叠的灰色/金属物体不会被替换。
+   腕部相机保持保守 mask：全相机开启时 click_bell 腕部视角的铃会被替换，已用于确定默认值。
+   已知取舍：透明物体（place_container_plate 玻璃碗）在头部视角会透出纹理，边缘保留。
+3. **墙面/桌面接缝填补**（`texture.fill_seam: true`）：位于两块 mask 之间（距离和 ≤ 28 px）且颜色接近任一表面的像素，
+   分配给较近的表面；机械臂和物体因颜色差异不受影响。
+4. **V2 纹理来源改为 `robotwin_seen`**（用户决定，贴近 randomized 场景；规则灰区，已披露；unseen 硬性拒绝不变）。
+
+验证：
+- 新增 4 项测试（亮度范围与配置覆盖、阴影生长且保护被硬边缘围住的物体、阴影感知只作用于配置的相机、接缝填补且机械臂不受影响）。
+- 在无服务器数据的 CPU 环境中，按 Dockerfile 顺序（原始源码校验 → 打 patch → patched 哈希校验）后，以下 14 项通过：4 项新增 + workers、global_rng、unseen、procedural、teacher_temporal、
+  enclosed_reflection、profile_gate、v2_temporal_and_distractors、state_labels_unchanged、library_reproducible。
+  test_none_original_prepare_images、test_feature_transform_inference_and_labels、test_all_2500 需要完整训练环境与真实数据，
+  本次未在该环境中运行（这三项覆盖的 utils.py/transform.py/seen 映射本次未改动），**训练前须在服务器上重跑全部测试**。
+- `evidence/augmentation_preview/revision_20261018/v2_before_after.jpg`：原图 / 修订前 / 修订后。
+  该图的输入是本仓库原有预览图中裁出的 clean 帧（192 px 放大、任务中途帧），纹理为 procedural，干扰物为演示用小库，
+  仅用于对比 mask 行为，不代表正式训练的素材和分辨率。正式配置下须在服务器上用 `scripts/validate_aug_visuals.py`
+  （`--texture-source robotwin_seen`）重新生成可视化并复查 mask 覆盖率。
+- 单张 320×240 图 mask 计算（CPU，缓存清空）：保守 mask 约 4 ms，阴影感知 mask 约 11.6 ms（含保守 mask）。只作用于头部相机，按纹理概率 0.3 摊到每个样本约 +9 ms，相对 V2 约 +10%。完整训练吞吐量仍须在 GPU 冒烟时测量。

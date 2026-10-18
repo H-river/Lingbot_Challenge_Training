@@ -162,6 +162,62 @@ class Contracts(unittest.TestCase):
         mask=aug.region_mask(image,np.array([220,220,220]))
         self.assertFalse(bool(mask[64,64]));self.assertTrue(bool(mask[5,5]))
 
+    def test_brightness_range(self):
+        values=[]
+        for i in range(400):
+            a=aug.SampleAugment({'profile':'v1','color':{'p':1}},42,0,i,'unused','task')
+            values.append(a.color[0])
+        self.assertGreaterEqual(min(values),.75);self.assertLessEqual(max(values),1.1)
+        self.assertGreater(max(values),1.05);self.assertLess(min(values),.8)
+        a=aug.SampleAugment({'profile':'v1','color':{'p':1,'brightness':[.9,.9]}},42,0,0,'unused','task')
+        self.assertAlmostEqual(a.color[0],.9)
+
+    @staticmethod
+    def shadow_scene():
+        """White-ish table, a soft shadow touching lit table, and a grey disk with a hard dark rim."""
+        import cv2
+        table=np.array([240,238,236],np.float32)
+        image=np.tile(table,(160,200,1))
+        shade=np.zeros((160,200),np.float32);cv2.rectangle(shade,(10,90),(90,150),1,-1)
+        shade=cv2.GaussianBlur(shade,(0,0),4)                       # soft shadow edge
+        image*=(1-.25*shade)[...,None]                              # 25% darker, same chroma
+        cv2.circle(image,(150,60),26,(25,25,25),-1)                  # hard dark rim
+        cv2.circle(image,(150,60),20,tuple(float(x) for x in table*.7),-1)  # grey object, shadow-like colour
+        return np.clip(image,0,255).astype(np.uint8),table
+
+    def test_shadow_aware_grows_into_shadow_not_objects(self):
+        image,table=self.shadow_scene()
+        strict=aug.region_mask(image,table);shadow=aug.shadow_region_mask(image,table)
+        core=(slice(105,140),slice(20,80))
+        self.assertLess(strict[core].mean(),.1)                     # conservative mask skips shadow
+        self.assertGreater(shadow[core].mean(),.9)                  # shadow-aware mask covers it
+        self.assertFalse(shadow[50:70,140:160].any())               # grey object enclosed by hard edge is protected
+        self.assertTrue(np.all(shadow[strict]))                     # never removes conservative pixels
+
+    def test_shadow_aware_only_on_configured_cameras(self):
+        image,table=self.shadow_scene()
+        colors={'table':table}
+        a=aug.SampleAugment({'profile':'v2','texture':{'p':0}},42,0,0,'unused','task')
+        head=a.surface_masks('camera_top',image,colors)['table']
+        wrist=a.surface_masks('camera_wrist_left',image,colors)['table']
+        self.assertTrue(np.array_equal(wrist,aug.region_mask(image,table)))
+        self.assertTrue(np.array_equal(head,aug.shadow_region_mask(image,table)))
+        b=aug.SampleAugment({'profile':'v2','texture':{'p':0,'shadow_aware_cameras':[]}},42,0,0,'unused','task')
+        self.assertTrue(np.array_equal(b.surface_masks('camera_top',image,colors)['table'],aug.region_mask(image,table)))
+
+    def test_seam_filled_but_arm_kept(self):
+        wall_c,table_c=np.array([200,200,225.]),np.array([245,245,245.])
+        image=np.zeros((120,160,3),np.uint8);image[:50]=wall_c;image[50:]=table_c
+        image[46:62]=255                                            # bright edge band left unmasked
+        image[40:70,70:90]=20                                       # dark arm crossing the boundary
+        wall=np.zeros((120,160),bool);wall[:44]=True
+        table=np.zeros((120,160),bool);table[64:]=True
+        t,w=aug.fill_seam(table,wall,image,{'table':table_c,'wall':wall_c})
+        band=np.zeros((120,160),bool);band[46:62]=True;band[:,68:92]=False
+        self.assertTrue(np.all((t|w)[band]))                        # seam closed
+        self.assertFalse(np.any((t|w)[44:64,72:88]))                # arm untouched
+        self.assertFalse(np.any(t&w))
+
     def test_library_reproducible(self):
         import hashlib,json,h5py,cv2
         builder=module('library_builder',Path(__file__).resolve().parents[1]/'scripts/build_distractor_library.py')

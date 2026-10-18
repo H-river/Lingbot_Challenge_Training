@@ -103,9 +103,9 @@ bash train.sh /absolute/path/to/reviewed-clean-config.yaml
 
 | 配置 | 默认启用 profile 时的值 | 行为 |
 |---|---|---|
-| `color.p` | 0.5 | 亮度 0.7–1.3、对比度 0.6–1.4、饱和度 0.5–1.5；HSV hue ±4/256，噪声 std 0–2/255，blur radius 0–0.5 |
+| `color` | p=0.5, brightness=[0.75,1.1], contrast=[0.6,1.4], saturation=[0.5,1.5] | 范围均可配置。亮度上限收紧到 1.1：RoboTwin clean 场景接近白色，上游 1.3 会大面积过曝。另有 HSV hue ±4/256，噪声 std 0–2/255，blur radius 0–0.5 |
 | `geometric` | p=0.3, min_area=0.90, max_shift=0.04 | 同宽高比裁剪再 resize，小幅反射边界平移 |
-| `texture` | p=0.3, regions=[table,wall] | 颜色距离、开闭运算、边缘保护、大连通区域及充分画面边界接触；保留原亮度，约 2–3 px 羽化 |
+| `texture` | p=0.3, regions=[table,wall], shadow_aware_cameras=[camera_top], fill_seam=true | 保守 mask：颜色距离、开闭运算、边缘保护、大连通区域及充分画面边界接触。`shadow_aware_cameras` 上额外把阴影纳入（见下文）。`fill_seam` 补上墙面/桌面交界的未替换窄带。保留原亮度，约 2–3 px 羽化 |
 | `distractor` | p=0.3, max_count=3, max_retries=20 | 只选其他任务 cutout；默认 camera_top；当前位置与未来帧的可贴区域取交集 |
 | `instruction_swap.enabled` | true | 只从本条轨迹经 SHA 验证的 seen 列表中抽取 |
 | `state_noise` | enabled=false, std=0 | 动作减 state 和归一化完成后，仅扰动模型输入 state |
@@ -125,8 +125,21 @@ V2 使用 RoboTwin `assets/background_texture/seen` 素材存在规则灰区，*
 本任务由用户明确授权实现。解析后路径包含 `unseen` 段（包括 symlink）会硬性拒绝。
 `texture.source=procedural` 提供木纹、大理石、织物、瓷砖、条纹、棋盘格、Perlin 噪声和
 色块备用，不读取 seen 图片。Perlin 使用随机二维单位梯度与 quintic fade；程序色彩范围
-为保守手设值，未声称匹配 seen 库统计。两份待确认配置默认使用
-procedural；改成 `robotwin_seen` 即可启用素材。
+为保守手设值，未声称匹配 seen 库统计。V2 配置使用 `robotwin_seen`（用户决定，
+贴近 randomized 场景）；V1 不使用纹理。若主办方不允许素材，把 V2 改为 `procedural` 重训即可。
+
+**阴影感知 mask（`shadow_aware_cameras`，默认只开头部相机）。** 保守 mask 只认与桌面同色的
+像素，机械臂阴影会被留成未替换的亮白剪影，与 randomized 场景中阴影落在纹理上的样子相反。
+阴影感知 mask 把「与桌面色度相同、亮度为其 0.5–1.08 倍」的像素视为候选，只在**硬边缘**
+（物体轮廓，Canny 60/150）处切开，并且只接受与保守 mask 有重叠（即连到已确认亮面桌面）的
+连通块。纹理乘以原图亮度，所以阴影在纹理上保持变暗。被硬边缘围住的灰色/金属物体是独立
+连通块、与保守 mask 无重叠，不会被替换。腕部相机保持保守 mask：近距离下金属物体的柔和
+反光会与桌面平滑相连（实测 click_bell 的铃会被替换），风险过高。已知取舍：透明物体（如
+place_container_plate 的玻璃碗）在头部视角会透出纹理，边缘保留。
+
+**接缝填补（`fill_seam`）。** 边缘保护和腐蚀会在墙面/桌面交界留下一条未替换的白带。位于两块
+mask 之间（到桌面距离 + 到墙面距离 ≤ 28 px）且颜色接近任一表面（距离 < 60）的像素，
+分配给较近的表面；机械臂、物体与两种表面颜色差得远，不受影响。
 
 干扰物库只读经 SHA 校验的 release clean 首帧。提取桌面 mask 内封闭组件，过滤
 边界、下方区域、细长、暗色或缺少颜色信息的组件（因此也舍弃无彩色物体）。**这是保守启发式，不能保证与物体同色的机械臂部件
