@@ -1,3 +1,4 @@
+# Also prohibited for submission under the 2026-10-19 rules (s2.1.2: texture replacement, object insertion).
 # ===================== ORACLE CONTROL EXPERIMENT — NOT FOR SUBMISSION =====================
 # V3 = V2 with the texture pool expanded to seen + unseen (EVALUATION) textures.
 # Purpose: measure how much of the clean->random gap is explained by texture distribution

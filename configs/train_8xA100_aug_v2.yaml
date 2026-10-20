@@ -1,3 +1,6 @@
+# NOT_FOR_SUBMISSION (rules updated 2026-10-19, Tianchi post 1081761 s2.1.2): background texture
+# replacement / overlay and inserting objects (Copy-Paste, synthetic or procedural) are prohibited.
+# Exploratory / diagnostic runs only; never submit this run or anything trained from it.
 # 待用户确认：8k weights-only -> 3000 steps; LR 5e-5 cosine -> 1e-5; save 1000.
 # BLOCKED: 8k checkpoint/provenance not found; remaining values are the checked-in
 # train_8xA100 TEMPLATE, NOT a claim about the actual 8k run.
@@ -19,7 +22,7 @@ data:
     geometric: {p: 0.3, min_area: 0.90, max_shift: 0.04}
     texture:
       p: 0.3
-      source: robotwin_seen   # user decision; rule grey area, disclosed. procedural = fallback
+      source: robotwin_seen   # prohibited for submission since 2026-10-19 (texture replacement), any source
       seen_dir: /root/lingbot_challenge/repos/RoboTwin/assets/background_texture/seen
       regions: [table, wall]
       shadow_aware_cameras: [camera_top]   # wrist cameras stay conservative (metal objects at close range)

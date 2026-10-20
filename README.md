@@ -97,6 +97,21 @@ bash train.sh /absolute/path/to/reviewed-clean-config.yaml
 
 ## 数据增广（V1 / V2 / V2b / V3 / V4 / V5）
 
+> **合规状态（2026-10-20 更新）**：天池《初赛仿真必做任务赛题规则解读》（[帖子 1081761](https://tianchi.aliyun.com/forum/post/1081761)，
+> 2026-10-19 22:22 修改）§2.1.1 规定增广只能在像素层面叠加退化，不得合成或替换场景内容；白名单为色彩扰动、噪声、模糊、
+> 小范围裁剪/平移/缩放、Cutout / Random Erasing、JPEG 伪影。§2.1.2 明确禁止背景纹理替换、CutMix / Copy-Paste、插入/删除/替换物体。
+> 按此规则：
+>
+> | 版本 | 内容 | 能否用于提交 |
+> |---|---|---|
+> | V1 | 颜色、小范围几何、seen 指令替换 | 增广部分在白名单内 |
+> | V2 / V2b | 背景纹理替换或叠加 + release 抠图干扰物 | **禁止**（纹理替换 + Copy-Paste） |
+> | V3 ORACLE | V2 + unseen 纹理 | **禁止**（本来就是对照实验） |
+> | V4 / V5 | 纹理叠加 + 程序生成的几何干扰物 | **禁止**（纹理叠加 + 插入物体） |
+>
+> V2–V5 只作为探索或诊断实验保留，配置文件头部已标 `NOT_FOR_SUBMISSION`；下文中"规则灰区，待确认"的说法是旧规则下的判断，已被本节取代。
+> 团队仓库 `Embodio-NTU/LingBot-VLA-2-challenge` 中的 V4 另指 Cutout 遮挡块，与本仓库的 V4/V5 不同。
+
 增广只作用于 dataloader；默认 `data.aug: {profile: none}`，原有 `image_augment`
 默认关闭。V1 开启颜色、几何和 seen 指令替换；V2 增加纹理和外任务干扰物。
 推理 `policy_eval=True` 无条件禁用全部新增广和指令替换。
@@ -121,7 +136,7 @@ bash train.sh /absolute/path/to/reviewed-clean-config.yaml
 LeRobot episode metadata。转换适配器按数字 episode 排序；每条现有 prompt 必须
 属于所映射原始 episode 的 seen 列表，任何错误终止。不会静默回退到固定指令。
 
-V2 使用 RoboTwin `assets/background_texture/seen` 素材存在规则灰区，**待主办方确认**；
+V2 使用 RoboTwin `assets/background_texture/seen` 素材（按 2026-10-19 规则，背景纹理替换不论素材来源均**禁止用于提交**）；
 本任务由用户明确授权实现。解析后路径包含 `unseen` 段（包括 symlink）会硬性拒绝。
 `texture.source=procedural` 提供木纹、大理石、织物、瓷砖、条纹、棋盘格、Perlin 噪声和
 色块备用，不读取 seen 图片。Perlin 使用随机二维单位梯度与 quintic fade；程序色彩范围
@@ -188,8 +203,8 @@ mask 之间（到桌面距离 + 到墙面距离 ≤ 28 px）且颜色接近任�
 - 其余与 V2b 完全一致：纹理叠加（`p: 0.3`，约 30% 样本有纹理）、闲置手聚焦、靠近已有物体的 hard negative、教师只做几何、
   标签不变。`procedural` 只能配合 `placement: v2b`（V1 放置方式会直接报错）。不读任何图片素材，也不打开 `library_dir`（有测试）。
 - 合规：不调用仿真、不用外部数据、不读 unseen 资产；所有随机数来自按 (seed, epoch, index, camera) 派生的样本 RNG。
-  按"训练期视觉增广"处理，但"往画面里贴合成物体"没有在允许清单里逐项列出，**⚠️ 规则灰区，建议和 V2 seen 纹理一起向主办方确认**。
-  V4 去掉了明暗和阴影，但贴的仍是合成物体，这个灰区对 V4、V5 是同一个问题。
+  按 2026-10-19 规则，插入物体（含程序生成的物体，无论是否有明暗和阴影）和纹理叠加均**禁止用于提交**，见本节开头。
+  此前写的"按训练期视觉增广处理、属规则灰区"是旧规则下的判断，已作废。
 - 逐位回归（`scripts/compare_aug_versions.py`，新旧两份 augment.py 在同一批样本上逐张量比较，每个配置 120 个样本、1440 个张量）：
   V1 / V2 / V2b / V3 与 V4 之前（`e79508a`）和第一版 V4（`29c2b68`）都全部相同；**V5 与第一版 V4（`29c2b68`，当时的立体版）逐位相同**。
   结果在 `evidence/augmentation_validation/v4_v5/`。

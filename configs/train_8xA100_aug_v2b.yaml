@@ -1,3 +1,6 @@
+# NOT_FOR_SUBMISSION (rules updated 2026-10-19, Tianchi post 1081761 s2.1.2): background texture
+# replacement / overlay and inserting objects (Copy-Paste, synthetic or procedural) are prohibited.
+# Exploratory / diagnostic runs only; never submit this run or anything trained from it.
 # V2b: shortcut-breaking augmentation. Evaluation showed the clean-trained policy moves/grasps
 # whenever something non-white is in front of a gripper. V2b shows textures and extra objects in
 # front of the robot (incl. in front of the idle arm) while the demonstrated action ignores them.
@@ -24,7 +27,7 @@ data:
     texture:
       p: 0.3
       mode: overlay              # V2b: no table/wall segmentation; random split line + translucent overlay
-      source: procedural         # robotwin_seen possible (disclosed grey area); unseen always rejected
+      source: procedural         # texture overlay is prohibited for submission since 2026-10-19; unseen always rejected
       seen_dir: /root/lingbot_challenge/repos/RoboTwin/assets/background_texture/seen
       regions: [table, wall]
       overlay: {alpha: [0.2, 0.5], head_line: [0.05, 0.35], tilt_deg: 5, wrist_wall_p: 0.3, wrist_line: [0.0, 0.5], feather: 3}
