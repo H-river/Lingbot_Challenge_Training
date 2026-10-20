@@ -1,4 +1,4 @@
-# Fresh clone of commit 7f59f73 (code identical to this commit), patch applied, Python 3.12 / torch 2.8.0 CPU.
+# Fresh clone of commit 9d0f0a1 (code identical to this commit), patch applied, Python 3.12 / torch 2.8.0 CPU.
 # LINGBOT_ROOT has no release data here, so test_all_2500 errors by design; it must be run on the server.
 test_all_2500 (__main__.Contracts.test_all_2500) ... ERROR
 test_brightness_range (__main__.Contracts.test_brightness_range) ... ok
@@ -7,15 +7,21 @@ test_feature_transform_inference_and_labels (__main__.Contracts.test_feature_tra
 ok
 test_global_rng_independent (__main__.Contracts.test_global_rng_independent) ... ok
 test_idle_arm_detection (__main__.Contracts.test_idle_arm_detection) ... ok
-test_library_reproducible (__main__.Contracts.test_library_reproducible) ... {"cutouts": 1, "directory": "/tmp/tmpf_tc3ijs/one"}
-{"cutouts": 1, "directory": "/tmp/tmpf_tc3ijs/two"}
+test_library_reproducible (__main__.Contracts.test_library_reproducible) ... {"cutouts": 1, "directory": "/tmp/tmp935rhso2/one"}
+{"cutouts": 1, "directory": "/tmp/tmp935rhso2/two"}
 ok
 test_none_original_prepare_images (__main__.Contracts.test_none_original_prepare_images) ... ok
 test_oracle_pool_and_v2_alignment (__main__.Contracts.test_oracle_pool_and_v2_alignment) ... ORACLE: 2 evaluation textures added to the pool; checkpoint is NOT FOR SUBMISSION
 ok
 test_oracle_requires_opt_in_and_keeps_other_guards (__main__.Contracts.test_oracle_requires_opt_in_and_keeps_other_guards) ... ok
 test_overlay_formula_and_wrist_without_wall (__main__.Contracts.test_overlay_formula_and_wrist_without_wall) ... ok
+test_procedural_colour_classes_and_shapes_uniform (__main__.Contracts.test_procedural_colour_classes_and_shapes_uniform) ... ok
+test_procedural_deterministic_and_rng_scoped (__main__.Contracts.test_procedural_deterministic_and_rng_scoped) ... ok
 test_procedural_does_not_open_seen (__main__.Contracts.test_procedural_does_not_open_seen) ... ok
+test_procedural_explicit_library_source_matches_default (__main__.Contracts.test_procedural_explicit_library_source_matches_default) ... ok
+test_procedural_never_reads_library_and_keeps_v2b_contracts (__main__.Contracts.test_procedural_never_reads_library_and_keeps_v2b_contracts) ... ok
+test_procedural_validation (__main__.Contracts.test_procedural_validation) ... ok
+test_procedural_wrist_objects_rendered_at_final_size (__main__.Contracts.test_procedural_wrist_objects_rendered_at_final_size) ... ok
 test_profile_gate (__main__.Contracts.test_profile_gate) ... ok
 test_seam_filled_but_arm_kept (__main__.Contracts.test_seam_filled_but_arm_kept) ... ok
 test_shadow_aware_grows_into_shadow_not_objects (__main__.Contracts.test_shadow_aware_grows_into_shadow_not_objects) ... ok
@@ -30,14 +36,10 @@ test_v2b_distractor_textured_and_shadowed (__main__.Contracts.test_v2b_distracto
 test_v2b_idle_focus_cameras_and_side (__main__.Contracts.test_v2b_idle_focus_cameras_and_side) ... ok
 test_v2b_near_object_hard_negatives (__main__.Contracts.test_v2b_near_object_hard_negatives) ... ok
 test_v2b_overlay_teacher_clean_temporal_and_whole_image (__main__.Contracts.test_v2b_overlay_teacher_clean_temporal_and_whole_image) ... ok
-test_v4_colour_classes_and_shapes_uniform (__main__.Contracts.test_v4_colour_classes_and_shapes_uniform) ... ok
-test_v4_config_is_v2b_plus_procedural_source (__main__.Contracts.test_v4_config_is_v2b_plus_procedural_source) ... ok
-test_v4_deterministic_and_rng_scoped (__main__.Contracts.test_v4_deterministic_and_rng_scoped) ... ok
-test_v4_explicit_library_source_matches_default (__main__.Contracts.test_v4_explicit_library_source_matches_default) ... ok
-test_v4_patch_shapes_colours_and_shading (__main__.Contracts.test_v4_patch_shapes_colours_and_shading) ... ok
-test_v4_procedural_never_reads_library_and_keeps_v2b_contracts (__main__.Contracts.test_v4_procedural_never_reads_library_and_keeps_v2b_contracts) ... ok
-test_v4_validation (__main__.Contracts.test_v4_validation) ... ok
-test_v4_wrist_objects_rendered_at_final_size (__main__.Contracts.test_v4_wrist_objects_rendered_at_final_size) ... ok
+test_v4_flat_patch_is_one_colour_with_v5_silhouette (__main__.Contracts.test_v4_flat_patch_is_one_colour_with_v5_silhouette) ... ok
+test_v4_v5_configs_are_v2b_plus_procedural_source (__main__.Contracts.test_v4_v5_configs_are_v2b_plus_procedural_source) ... ok
+test_v4_v5_share_placements_and_v4_has_no_shadow (__main__.Contracts.test_v4_v5_share_placements_and_v4_has_no_shadow) ... ok
+test_v5_shaded_patch_shapes_colours_and_shading (__main__.Contracts.test_v5_shaded_patch_shapes_colours_and_shading) ... ok
 <venv>/lib/python3.12/site-packages/torch/utils/data/dataloader.py:627: UserWarning: This DataLoader will create 4 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
   warnings.warn(
 ok
@@ -46,7 +48,7 @@ ok
 ERROR: test_all_2500 (__main__.Contracts.test_all_2500)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "<clean-copy>/tests/test_dataloader_aug.py", line 505, in test_all_2500
+  File "<clean-copy>/tests/test_dataloader_aug.py", line 541, in test_all_2500
     index=aug.seen_index(os.environ['LINGBOT_ROOT'])
           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   File "<clean-copy>/repos/lingbot-vla-v2/lingbotvla/data/vla_data/augment.py", line 88, in seen_index
@@ -54,6 +56,6 @@ Traceback (most recent call last):
 ValueError: All 50 tasks / 2500 trajectories must be validated
 
 ----------------------------------------------------------------------
-Ran 35 tests in 6.961s
+Ran 37 tests in 7.766s
 
 FAILED (errors=1)

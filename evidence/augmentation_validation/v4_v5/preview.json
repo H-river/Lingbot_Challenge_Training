@@ -1,8 +1,12 @@
 {
-  "config": "configs/train_8xA100_aug_v4.yaml",
+  "configs": [
+    "configs/train_8xA100_aug_v4.yaml",
+    "configs/train_8xA100_aug_v5.yaml"
+  ],
   "seed": 42,
   "epoch": 0,
-  "frames": "cropped clean frames (see regression_v1_v2_v2b_v3.json \"frames\")",
+  "texture_p_override": null,
+  "frames": "4 tasks x 3 cameras cropped from evidence/augmentation_preview/revision_20261019_v2b/*.jpg (column 1, JPEG)",
   "sheets": [
     {
       "task": "click_bell",
@@ -13,8 +17,11 @@
         "original",
         "V2b (earlier sheet)",
         "V4 normal",
+        "V5 normal",
         "V4 idle=LEFT arm",
-        "V4 idle=RIGHT arm"
+        "V5 idle=LEFT arm",
+        "V4 idle=RIGHT arm",
+        "V5 idle=RIGHT arm"
       ]
     },
     {
@@ -26,8 +33,11 @@
         "original",
         "V2b (earlier sheet)",
         "V4 normal",
+        "V5 normal",
         "V4 idle=LEFT arm",
-        "V4 idle=RIGHT arm"
+        "V5 idle=LEFT arm",
+        "V4 idle=RIGHT arm",
+        "V5 idle=RIGHT arm"
       ]
     },
     {
@@ -39,8 +49,11 @@
         "original",
         "V2b (earlier sheet)",
         "V4 normal",
+        "V5 normal",
         "V4 idle=LEFT arm",
-        "V4 idle=RIGHT arm"
+        "V5 idle=LEFT arm",
+        "V4 idle=RIGHT arm",
+        "V5 idle=RIGHT arm"
       ]
     },
     {
@@ -52,8 +65,11 @@
         "original",
         "V2b (earlier sheet)",
         "V4 normal",
+        "V5 normal",
         "V4 idle=LEFT arm",
-        "V4 idle=RIGHT arm"
+        "V5 idle=LEFT arm",
+        "V4 idle=RIGHT arm",
+        "V5 idle=RIGHT arm"
       ]
     }
   ]

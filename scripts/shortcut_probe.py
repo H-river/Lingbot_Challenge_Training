@@ -98,7 +98,9 @@ def build_pairs(args, aug):
             pasted = dict(images)
             dc = {'library_dir': args.library, 'max_count': args.max_count, 'near_object_p': 0.0, 'shadow': True}
             if args.distractor_source == 'procedural':
-                dc = {'source': 'procedural', 'max_count': args.max_count, 'near_object_p': 0.0, 'shadow': True}
+                flat = args.procedural_style == 'flat'
+                dc = {'source': 'procedural', 'max_count': args.max_count, 'near_object_p': 0.0, 'shadow': not flat,
+                      'procedural': {'style': args.procedural_style}}
             n_obj = 0
             for cam in ('camera_top', aug.WRIST_CAMERAS[idle]):
                 table = aug.region_mask(images[cam], colors[cam]['table'])
@@ -126,7 +128,9 @@ def main():
     p.add_argument('--source', required=True, help='patched repos/lingbot-vla-v2 (for augment.py and deploy/)')
     p.add_argument('--library', help='distractor library built by build_distractor_library.py (source library)')
     p.add_argument('--distractor-source', choices=['library', 'procedural'], default='library',
-                   help='procedural = V4 rendered objects; a V4-trained model has seen this object distribution')
+                   help='procedural = V4/V5 generated objects; a V4/V5-trained model has seen this object distribution')
+    p.add_argument('--procedural-style', choices=['shaded', 'flat'], default='shaded',
+                   help='with --distractor-source procedural: shaded (V5, contact shadow) or flat (V4, no shadow)')
     p.add_argument('--output', required=True, help='new output directory')
     p.add_argument('--model', help='exported hf_ckpt; required unless --dry-run')
     p.add_argument('--tasks', nargs='*', default=[])

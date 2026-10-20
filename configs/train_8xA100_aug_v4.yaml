@@ -1,12 +1,12 @@
-# V4: V2b with PROCEDURAL geometric distractors. Purpose: break the shortcut "something
-# non-white in front of a gripper => move/grasp". Distractor objects are generated in code
-# (box, cylinder, bottle with neck, sphere, half-ellipsoid bowl; Lambert shading + Phong
-# highlight; colour CLASS sampled uniformly incl. white, grey and metal) instead of being cut
-# out of release first frames, so achromatic objects are covered and no image asset is read.
-# They are synthetic 2-D pastes, not re-rendered scenes: no simulator, no external/unseen data.
-# Only difference from train_8xA100_aug_v2b.yaml: distractor.source procedural (+ its parameters,
-# library_dir removed). Texture overlay, idle-arm focus, near-object hard negatives and contact
-# shadows are unchanged.
+# V4: V2b with FLAT procedural geometric distractors (pure 2-D shapes and colours). Purpose:
+# break the shortcut "something non-white in front of a gripper => move/grasp". Each distractor
+# is the 2-D silhouette of a box, cylinder, bottle with neck, sphere or half-ellipsoid bowl filled
+# with ONE colour: no shading, no highlight, no contact shadow. Colour CLASS is sampled uniformly
+# (incl. white, grey, metal). Generated in code: no image asset, simulator, external or unseen data.
+# Differences from train_8xA100_aug_v2b.yaml: distractor.source procedural + procedural.style flat,
+# distractor.shadow false, library_dir removed. Texture overlay, idle-arm focus and near-object
+# hard negatives are unchanged. V5 (train_8xA100_aug_v5.yaml) is the shaded variant; for a given
+# sample both place the same shape, colour, size and position.
 # 待用户确认：8k weights-only -> 3000 steps; LR 5e-5 cosine -> 1e-5; save 1000.
 # BLOCKED: 8k checkpoint/provenance not found; remaining values are the checked-in
 # train_8xA100 TEMPLATE, NOT a claim about the actual 8k run.
@@ -38,6 +38,7 @@ data:
       placement: v2b             # all cameras, hard negatives near objects, idle-arm focus, contact shadow
       source: procedural         # V4: rendered geometric objects; never reads a cutout library
       procedural:
+        style: flat              # V4: one colour per silhouette, no shading/highlight
         size: [16, 44]           # object height in px for a 320-px-wide frame (x wrist_scale on wrist views)
         shapes: [box, cylinder, bottle, sphere, bowl]
         colors: [red, orange, yellow, green, cyan, blue, purple, pink, brown, black, grey, white, metal]
@@ -46,7 +47,7 @@ data:
       cameras: [camera_top, camera_wrist_left, camera_wrist_right]
       near_object_p: 0.5
       idle_focus_p: 0.3          # of samples with exactly one still arm: objects in front of that arm, label unchanged
-      shadow: true
+      shadow: false              # V4: no contact shadow (pure 2-D)
       wrist_scale: [1.5, 3.0]
       idle_arm: {arm_key: action.arm.position, gripper_key: action.effector.position, threshold: 0.05}
     instruction_swap: {enabled: true}

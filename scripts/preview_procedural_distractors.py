@@ -1,24 +1,27 @@
 #!/usr/bin/env python3
-"""V4 preview sheets: clean frame vs V2b vs V4 (procedural distractors). CPU only, no simulator.
+"""Preview sheets for procedural distractors (V4 flat / V5 shaded). CPU only, no simulator.
 
 Input frames come either from --frames (a directory of <task>__<camera>.png clean frames) or
 from --root (release clean HDF5 via the clean_episodes_*.manifest.json files; frame --frame of
-episode --episode). Per task, one sheet with rows = head / left wrist / right wrist and columns:
-  original | V2b (optional, cropped from an earlier V2b preview sheet via --before) |
-  V4 normal | V4 idle=LEFT arm | V4 idle=RIGHT arm
-plus placement.json (placement success per camera, timing, idle-side check)
-The V4 columns use the given config's data.aug unchanged except that the idle columns force
-idle_focus_p=1 and set the idle arm by hand (in training the arm comes from the release action
-chunk and the probability from the config). "V4 normal" uses the first sample index whose
-distractor decision is on (search starts at --start + 10 x task position, so tasks
-get different draws). Also writes gallery.jpg: every shape x colour class.
-With --frames, table/wall colours are estimated on the given frame instead of the episode's
-first frame (the training path uses episode_colors on frame 0).
+episode --episode). One or more --config files (e.g. V4 and V5); per task one sheet with rows =
+head / left wrist / right wrist and columns:
+  original | V2b (optional, cropped from an earlier V2b sheet via --before) |
+  <cfg> normal ... | <cfg> idle=LEFT arm ... | <cfg> idle=RIGHT arm ...
+with the configs side by side inside each group. All configs use the SAME sample keys, so V4 and
+V5 columns show the same shapes, colours, sizes and positions. data.aug is used unchanged except:
+idle columns force idle_focus_p=1 and set the idle arm by hand (in training the arm comes from the
+release action chunk and the probability from the config); --texture-p overrides texture.p for
+the preview only (default: keep the config's training probability, so most columns have no
+texture). "normal" uses the first sample index whose distractor decision is on (search starts at
+--start + 10 x task position). Also writes gallery_<cfg>.jpg (every shape x colour class) and
+placement_<cfg>.json (placement success per camera, timing, idle-side check). With --frames,
+table/wall colours are estimated on the given frame (training uses episode_colors on frame 0).
 """
 import argparse
 import copy
 import importlib.util
 import json
+import re
 from pathlib import Path
 from unittest.mock import patch
 
@@ -83,13 +86,13 @@ def run(aug, cfg, cams, colors, index, idle):
     return {c: aug.uint8_hwc(student[c]) for c in CAMERAS}, sample.distractor_on
 
 
-def gallery(aug, path):
+def gallery(aug, path, style='shaded'):
     shapes, colours = aug.PROCEDURAL_SHAPES, tuple(aug.PROCEDURAL_COLORS)
     cell = 120
     canvas = np.full((cell * len(shapes) + 24, cell * len(colours), 3), 232, np.uint8)
     for i, s in enumerate(shapes):
         for j, c in enumerate(colours):
-            p = aug.procedural_distractor(aug.sample_rng(0, i, j, 'gallery'), {'shapes': [s], 'colors': [c]}, 56)
+            p = aug.procedural_distractor(aug.sample_rng(0, i, j, 'gallery'), {'shapes': [s], 'colors': [c], 'style': style}, 56)
             h, w = p.shape[:2]
             scale = min(1.0, (cell - 8) / w)
             if scale < 1:
@@ -150,23 +153,30 @@ def main(a):
         frames = {t: v for t, v in frames.items() if t in a.tasks}
     if not frames:
         raise SystemExit('no frames')
-    base = yaml.safe_load(a.config.read_text())['data']['aug']
-    if base.get('texture', {}).get('source') != 'procedural':
-        raise SystemExit('preview expects texture.source procedural (no texture assets needed)')
-    idle_cfg = copy.deepcopy(base); idle_cfg['distractor']['idle_focus_p'] = 1.0
+    configs = []
+    for path in a.config:
+        cfg = yaml.safe_load(path.read_text())['data']['aug']
+        if cfg.get('texture', {}).get('source') != 'procedural':
+            raise SystemExit('preview expects texture.source procedural (no texture assets needed)')
+        if a.texture_p is not None:
+            cfg['texture']['p'] = a.texture_p
+        idle = copy.deepcopy(cfg); idle['distractor']['idle_focus_p'] = 1.0
+        label = re.sub(r'^train_8xA100_aug_', '', path.stem).upper()
+        configs.append((label, cfg, idle))
+    first = configs[0][1]
     records = []
     for k, (task, cams) in enumerate(sorted(frames.items())):
         colors = (aug.episode_colors(raw_paths[task]) if task in raw_paths
                   else {c: aug.estimate_colors(im) for c, im in cams.items()})
         index = next(i for i in range(a.start + 10 * k, a.start + 10 * k + 1000)
-                     if aug.SampleAugment(base, 42, 0, i, 'preview', 'preview').distractor_on)
+                     if aug.SampleAugment(first, 42, 0, i, 'preview', 'preview').distractor_on)
         columns = [('original', cams)]
         before = Path(a.before, f'{task}.jpg') if a.before else None
         if before and before.is_file():
             columns.append(('V2b (earlier sheet)', dict(zip(CAMERAS, before_column(before)))))
-        columns.append(('V4 normal', run(aug, base, cams, colors, index, None)[0]))
-        columns.append(('V4 idle=LEFT arm', run(aug, idle_cfg, cams, colors, index + 1, 'left')[0]))
-        columns.append(('V4 idle=RIGHT arm', run(aug, idle_cfg, cams, colors, index + 2, 'right')[0]))
+        for title, offset, arm, which in (('normal', 0, None, 1), ('idle=LEFT arm', 1, 'left', 2), ('idle=RIGHT arm', 2, 'right', 2)):
+            for label, cfg, idle in configs:
+                columns.append((f'{label} {title}', run(aug, cfg if which == 1 else idle, cams, colors, index + offset, arm)[0]))
         h, w = cams['camera_top'].shape[:2]
         sheet = Image.new('RGB', (len(columns) * (w + 4) - 4, 24 + 3 * (h + 4) - 4), 'white')
         draw = ImageDraw.Draw(sheet)
@@ -177,10 +187,12 @@ def main(a):
         sheet.save(a.output / f'{task}.jpg', quality=90)
         records.append({'task': task, 'normal_index': index, 'idle_left_index': index + 1, 'idle_right_index': index + 2,
                         'columns': [t for t, _ in columns]})
-    gallery(aug, a.output / 'gallery.jpg')
-    stats = placement_stats(aug, base['distractor'], frames)
-    (a.output / 'placement.json').write_text(json.dumps(stats, indent=2) + '\n')
-    (a.output / 'preview.json').write_text(json.dumps({'config': str(a.config), 'seed': 42, 'epoch': 0,
+    for label, cfg, _ in configs:
+        gallery(aug, a.output / f'gallery_{label.lower()}.jpg', cfg['distractor'].get('procedural', {}).get('style', 'shaded'))
+        stats = placement_stats(aug, cfg['distractor'], frames)
+        (a.output / f'placement_{label.lower()}.json').write_text(json.dumps(stats, indent=2) + '\n')
+    (a.output / 'preview.json').write_text(json.dumps({'configs': [str(p) for p in a.config], 'seed': 42, 'epoch': 0,
+                                                        'texture_p_override': a.texture_p,
                                                         'frames': str(a.frames or a.root), 'sheets': records}, indent=2) + '\n')
     print(json.dumps(records))
 
@@ -191,7 +203,8 @@ if __name__ == '__main__':
     src.add_argument('--frames', type=Path)
     src.add_argument('--root', type=Path)
     p.add_argument('--source', type=Path, required=True, help='patched repos/lingbot-vla-v2')
-    p.add_argument('--config', type=Path, required=True)
+    p.add_argument('--config', type=Path, nargs='+', required=True, help='one or more configs, e.g. V4 and V5')
+    p.add_argument('--texture-p', type=float, help='preview-only override of texture.p (default: training value)')
     p.add_argument('--output', type=Path, required=True, help='new directory')
     p.add_argument('--before', type=Path, help='directory of earlier V2b sheets named <task>.jpg')
     p.add_argument('--tasks', nargs='*', default=[])

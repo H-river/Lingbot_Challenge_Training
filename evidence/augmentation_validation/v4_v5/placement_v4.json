@@ -1,0 +1,22 @@
+{
+  "camera_top": {
+    "at_least_one": 0.725,
+    "mean_count": 1.52,
+    "plan_paste_ms_median": 12.1,
+    "plan_paste_ms_p90": 15.8
+  },
+  "camera_wrist_left": {
+    "at_least_one": 0.867,
+    "mean_count": 1.74,
+    "plan_paste_ms_median": 11.3,
+    "plan_paste_ms_p90": 16.4
+  },
+  "camera_wrist_right": {
+    "at_least_one": 0.708,
+    "mean_count": 1.46,
+    "plan_paste_ms_median": 11.3,
+    "plan_paste_ms_p90": 15.6
+  },
+  "head_idle_side_ok": "276/276",
+  "samples_per_task_and_camera": 30
+}

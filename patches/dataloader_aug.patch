@@ -23,10 +23,10 @@ index 6c34523..74cf469 100644
          sampler = StatefulDistributedSampler(
 diff --git a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/augment.py b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/augment.py
 new file mode 100644
-index 0000000..381f239
+index 0000000..d67570f
 --- /dev/null
 +++ b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/augment.py
-@@ -0,0 +1,961 @@
+@@ -0,0 +1,980 @@
 +"""Deterministic CPU-only augmentation; no simulator or evaluation data access."""
 +from functools import lru_cache
 +from pathlib import Path
@@ -697,7 +697,12 @@ index 0000000..381f239
 +            base = rng.uniform(.5, 1.2) * w / 320 * rng.uniform(lo, hi)
 +        flip = rng.random() < .5
 +        near = len(anchors) > 0 and rng.random() < config.get('near_object_p', 0.5)
-+        shadow = float(rng.uniform(.25, .45)) if config.get('shadow', True) else 0.0
++        if procedural:
++            # always drawn so V4 (flat, shadow off) and V5 (shaded) consume identical RNG
++            drawn = float(rng.uniform(.25, .45))
++            shadow = drawn if config.get('shadow', True) else 0.0
++        else:
++            shadow = float(rng.uniform(.25, .45)) if config.get('shadow', True) else 0.0
 +        retries = config.get('max_retries', 20)
 +        placed = False
 +        # Free table area is small in close-up wrist views: retry at 70% and 50% size.
@@ -773,7 +778,10 @@ index 0000000..381f239
 +
 +
 +# ---------------------------------------------------------------------------
-+# V4: procedural geometric distractors (distractor.source: procedural).
++# V4 / V5: procedural geometric distractors (distractor.source: procedural).
++# V4 = procedural.style flat (2-D silhouettes, one colour, contact shadow off in its config);
++# V5 = procedural.style shaded (the description below). Same RNG draws, so for a given sample
++# V4 and V5 place the same shape, colour, size and position; only the appearance differs.
 +# Purpose: break the "non-white thing in front of the gripper => move/grasp" shortcut.
 +# Objects are drawn from scratch (no release cutouts, no simulator, no external or
 +# evaluation assets): 5 primitive shapes with Lambert shading, Phong highlight and
@@ -800,6 +808,7 @@ index 0000000..381f239
 +}
 +SUPERSAMPLE = 3
 +PROCEDURAL_SIZE = (16, 44)        # object height in px for a 320-px-wide frame, before wrist scale
++PROCEDURAL_STYLES = ('shaded', 'flat')   # shaded = V5 (3-D look); flat = V4 (2-D silhouette, one colour)
 +DISTRACTOR_SOURCES = ('library', 'procedural')
 +
 +
@@ -818,6 +827,8 @@ index 0000000..381f239
 +        for name in pc.get('colors', PROCEDURAL_COLORS):
 +            if name not in PROCEDURAL_COLORS:
 +                raise ValueError(f'Unknown procedural colour class: {name}')
++        if pc.get('style', 'shaded') not in PROCEDURAL_STYLES:
++            raise ValueError(f"Unknown distractor.procedural.style: {pc.get('style')}")
 +        s0, s1 = pc.get('size', PROCEDURAL_SIZE)
 +        if not 4 <= s0 <= s1:
 +            raise ValueError('distractor.procedural.size must satisfy 4 <= min <= max')
@@ -868,7 +879,13 @@ index 0000000..381f239
 +    return SUPERSAMPLE if height < 48 else 2
 +
 +
-+def _render(rng, shape, height, color_name, light):
++def _render(rng, shape, height, color_name, light, style='shaded'):
++    """style 'shaded': Lambert/Phong/env shading, bottle cap colour, material variation.
++    style 'flat': identical silhouette (alpha), every pixel the single object colour; no shading,
++    highlight or variation. Both styles make the same RNG draws in the same order."""
++    if style not in PROCEDURAL_STYLES:
++        raise ValueError(f'Unknown procedural style: {style}')
++    flat = style == 'flat'
 +    base = procedural_color(rng, color_name)
 +    mat = _material(rng, color_name)
 +    elev = float(rng.uniform(.25, .5))                             # b/a of horizontal ellipses
@@ -896,7 +913,7 @@ index 0000000..381f239
 +        normal = np.asarray(normal, np.float32)
 +        nm = normal[mask] if normal.ndim == 3 else np.broadcast_to(normal, (int(mask.sum()), 3))
 +        g = gain[mask][:, None] if isinstance(gain, np.ndarray) else gain
-+        rgb[mask] = _shade(nm, colour, light, mat) * g
++        rgb[mask] = base if flat else _shade(nm, colour, light, mat) * g
 +        alpha[mask] = 1
 +
 +    if shape == 'sphere':
@@ -959,7 +976,8 @@ index 0000000..381f239
 +        put(ui ** 2 + vi ** 2 <= 1, np.stack([-ui * .8, .3 - .6 * vi, .6 + .4 * np.clip(-vi, 0, 1)], -1), base, .9)
 +    # low-frequency material variation
 +    var = cv2.resize(rng.normal(0, 1, (4, 4)).astype(np.float32), (w, h), interpolation=cv2.INTER_CUBIC)
-+    rgb *= (1 + .025 * var)[..., None]
++    if not flat:
++        rgb *= (1 + .025 * var)[..., None]
 +    rgba = np.dstack([np.clip(rgb, 0, 1) * alpha[..., None], alpha])
 +    small = cv2.resize(rgba, (W, H), interpolation=cv2.INTER_AREA)  # premultiplied: no dark fringe
 +    a = small[..., 3:]
@@ -985,9 +1003,10 @@ index 0000000..381f239
 +
 +
 +def procedural_distractor(rng, config, height):
-+    """RGBA uint8 patch of one procedural object, `height` px tall, base on the bottom row."""
++    """RGBA uint8 patch of one procedural object, `height` px tall, base on the bottom row.
++    config['style']: 'shaded' (default, V5) or 'flat' (V4)."""
 +    shape, color, light = procedural_spec(rng, config)
-+    return _render(rng, shape, max(4, int(round(height))), color, light)
++    return _render(rng, shape, max(4, int(round(height))), color, light, config.get('style', 'shaded'))
 diff --git a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/base_dataset.py b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/base_dataset.py
 index 71d62a0..ddd5aa6 100644
 --- a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/base_dataset.py

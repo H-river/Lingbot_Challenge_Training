@@ -168,6 +168,10 @@ LR 5e-5 -> 1e-5 cosine、3000 steps、每 1000 保存均标为待用户确认，
 
 ## 2026-10-20 V4：程序生成的几何干扰物（打破 shortcut）
 
+> 同日修订：本节描述的立体渲染版本已改名为 **V5**（`configs/train_8xA100_aug_v5.yaml`，与本节 commit `29c2b68` 逐位相同），
+> V4 改为纯 2D 形状 + 颜色，见下一节。本节的证据文件已移到 `evidence/augmentation_validation/v4_v5/`、
+> `evidence/augmentation_preview/revision_20261020_v4_v5/`，原始预览图保留在 `29c2b68` 的 git 历史里。
+
 动机与 V2b 相同：clean 训练的策略"夹爪前面有非白色东西就移动/抓取"。V2b 的干扰物来自 release 首帧抠图，抠图规则丢弃了
 无彩色物体，所以面前出现的东西几乎都是彩色的，"彩色 = 该去抓"仍然成立。V4 把干扰物换成**程序生成的几何干扰物**，
 颜色按大类均匀抽样（含白、灰、金属色），用途是打破这个 shortcut，不是模拟真实物体或 randomized 场景。
@@ -181,7 +185,7 @@ LR 5e-5 -> 1e-5 cosine、3000 steps、每 1000 保存均标为待用户确认，
 - 颜色：13 个大类均匀抽样，类内在手设 HSV 范围取值；金属 75% 银色、25% 黄铜色。范围手设，未用任何数据统计。
 - 新增 `configs/train_8xA100_aug_v4.yaml`：与 V2b 相比只多 `source: procedural` 与 `procedural:` 参数、去掉 `library_dir`（有测试逐键核对）。
 - `scripts/shortcut_probe.py` 新增 `--distractor-source`（默认 `library`，行为不变）。
-- 新增 `scripts/compare_aug_versions.py`（新旧 augment.py 逐张量回归）与 `scripts/preview_v4_distractors.py`（对比图 + 放置统计）。
+- 新增 `scripts/compare_aug_versions.py`（新旧 augment.py 逐张量回归）与 `scripts/preview_v4_distractors.py`（对比图 + 放置统计；现为 `scripts/preview_procedural_distractors.py`）。
 
 合规：零仿真调用；不读外部数据、unseen 资产或任何图片素材（procedural 路径不打开 `library_dir`，有测试）；
 标签、指令、state 处理均不变；教师仍只做几何。按"训练期视觉增广"处理，但贴合成物体未在允许清单中逐项列出，
@@ -191,17 +195,46 @@ LR 5e-5 -> 1e-5 cosine、3000 steps、每 1000 保存均标为待用户确认，
 - 逐位回归：上一 commit 与本次的 augment.py，在 V1 / V2 / V2b / V3 四个配置上各 120 个样本（当前帧 + 未来帧 × 三相机，
   学生/教师共 1440 个张量），**全部 torch.equal**。回归确实走到了被比较的分支：V2 放置 33 个、V2b 放置 208 个库干扰物，
   V2b 中闲置手左/右/无三种情况轮换。输入是从上一版预览图裁出的 4 个任务 clean 帧，纹理和抠图库是临时夹具
-  （见 `evidence/augmentation_validation/v4/regression_v1_v2_v2b_v3.json`）。
+  （见 `evidence/augmentation_validation/v4_v5/regression_v1_v2_v2b_v3.json`）。
 - 单元测试：新增 8 项（显式 `library` 与默认逐位相同；procedural 不读库且保持教师干净/当前未来一致；5 形状 × 13 颜色类
   均有软边缘、有明暗、底边贴底；白色物体无彩色但有明暗；形状与颜色类均匀；确定性且不受全局 RNG 影响；腕部按最终尺寸渲染；
-  配置校验；V4 配置 = V2b + procedural）。全部 35 项中 34 项在本环境通过，日志 `evidence/augmentation_validation/v4/cpu_tests.txt`。
+  配置校验；V4 配置 = V2b + procedural）。全部 35 项中 34 项在本环境通过，日志 `evidence/augmentation_validation/v4_v5/cpu_tests.txt`。
   `test_all_2500` 需要服务器上完整的 2500 条 release 数据和转换 provenance，本环境没有数据，**未运行**（本次未改动其覆盖的
   seen 映射代码），训练前须在服务器上重跑全部测试。
 - 放置统计（同一批裁出帧，每任务每相机 30 次，`placement.json`）：至少放上一个的比例 头部 72.5% / 左腕 86.7% / 右腕 70.8%，
   平均 1.46–1.74 个；头部闲置侧约束 276/276 满足。规划 + 粘贴耗时中位数 头部 12 ms、腕部 17–18 ms（单线程 CPU），
   按 `distractor.p` 0.5 与三相机摊到每个样本约 +20–25 ms，真实训练吞吐量仍须在 GPU 冒烟时测量。
-- 预览：`evidence/augmentation_preview/revision_20261020_v4/`，已逐张查看。
+- 预览：当时为 `evidence/augmentation_preview/revision_20261020_v4/`（见 `29c2b68`），已逐张查看。
 
 已知局限：几何体都直立，没有倒放、旋转、纹理图案或文字；光照是简化模型；头部画面桌面 mask 小时常放不下（与 V2b 相同）；
 预览与统计用的是 JPEG 再压缩的中途帧，正式训练前须在服务器上用 `--root` 重新生成并复查；
 V4 训练后的 shortcut probe 应以 `library` 抠图物体为主要判据（procedural 物体是训练分布内的）。
+
+## 2026-10-20 V4 改为纯 2D，立体版改名 V5
+
+用户决定写两版：V4 = 纯 2D 形状和颜色，原来的立体渲染版改名 V5，两版都作为可选训练配置。
+
+- `augment.py` 新增 `distractor.procedural.style`：`shaded`（默认，即 V5，行为与 `29c2b68` 完全相同）/ `flat`（V4）。
+  `flat` 使用与 `shaded` 相同的几何轮廓（alpha 逐像素相同），整块填一种物体颜色，不做明暗、高光、瓶盖异色和材质扰动。
+- 两种风格消耗相同的随机数；procedural 路径下即使 `shadow: false` 也照常抽取阴影强度（library 路径的代码不变）。
+  因此同一样本在 V4 / V5 下形状、颜色、大小、位置完全一致，V4 − V5 只反映立体感和接触阴影本身。
+- 配置：`configs/train_8xA100_aug_v4.yaml` 改为 `style: flat` + `shadow: false`；新增 `configs/train_8xA100_aug_v5.yaml`
+  （`style: shaded` + `shadow: true`）。两份配置与 V2b 的差别由测试逐键核对。
+- `scripts/preview_v4_distractors.py` 改名为 `scripts/preview_procedural_distractors.py`，可同时传入多个配置并排出图，
+  新增 `--texture-p`（仅预览用的纹理概率覆盖，默认保持训练值）；`scripts/shortcut_probe.py` 新增 `--procedural-style`。
+
+合规：与上一节相同。去掉明暗和阴影不改变合规三问的任何一项，"贴合成物体"这一灰区对 V4、V5 相同，⚠️ 仍建议向主办方确认。
+
+验证：
+- 逐位回归（每个配置 120 个样本、1440 个张量）：相对 `e79508a`（V4 之前），V1 / V2 / V2b / V3 全部相同；相对 `29c2b68`
+  （第一版 V4），V1 / V2 / V2b / V3 与 **V5** 全部相同（`regression_v1_v2_v2b_v3.json`、`regression_vs_29c2b68_incl_v5.json`）。
+- 单元测试共 37 项：procedural 相关测试改为同时覆盖两种风格，并新增 2 项（V4 每个形状 × 颜色类都是单一颜色且轮廓与 V5 相同；
+  V4/V5 放置完全一致、V4 阴影强度为 0 且物体以外像素不变）。本环境 36 项通过；`test_all_2500` 需要服务器上的 release 数据，未运行。
+  日志 `evidence/augmentation_validation/v4_v5/cpu_tests.txt`。
+- 放置统计 V4 与 V5 完全相同（同一套随机数）：至少放上一个的比例 头部 72.5% / 左腕 86.7% / 右腕 70.8%；
+  V4 规划 + 粘贴耗时中位数约 11–12 ms，V5 约 15–21 ms（单线程 CPU，`placement_v4.json` / `placement_v5.json`）。
+- 预览 `evidence/augmentation_preview/revision_20261020_v4_v5/`，已逐张查看；纹理按训练概率抽样，所以多数列没有纹理。
+
+已知局限（V4 特有）：白色/浅灰物体在浅色桌面上几乎看不见；平面色块与真实物体差异明显，模型可能学会"平的不用理"，
+即 shortcut 换成"有立体感才是目标"。建议 V4 与 V5 都训练，用 shortcut probe（`library` 抠图物体）和评测结果比较。
+
