@@ -97,6 +97,8 @@ def build_pairs(args, aug):
             colors = aug.episode_colors(str(raw))
             pasted = dict(images)
             dc = {'library_dir': args.library, 'max_count': args.max_count, 'near_object_p': 0.0, 'shadow': True}
+            if args.distractor_source == 'procedural':
+                dc = {'source': 'procedural', 'max_count': args.max_count, 'near_object_p': 0.0, 'shadow': True}
             n_obj = 0
             for cam in ('camera_top', aug.WRIST_CAMERAS[idle]):
                 table = aug.region_mask(images[cam], colors[cam]['table'])
@@ -122,7 +124,9 @@ def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('--root', required=True, help='LINGBOT_ROOT with configs/ manifests and raw clean data')
     p.add_argument('--source', required=True, help='patched repos/lingbot-vla-v2 (for augment.py and deploy/)')
-    p.add_argument('--library', required=True, help='distractor library built by build_distractor_library.py')
+    p.add_argument('--library', help='distractor library built by build_distractor_library.py (source library)')
+    p.add_argument('--distractor-source', choices=['library', 'procedural'], default='library',
+                   help='procedural = V4 rendered objects; a V4-trained model has seen this object distribution')
     p.add_argument('--output', required=True, help='new output directory')
     p.add_argument('--model', help='exported hf_ckpt; required unless --dry-run')
     p.add_argument('--tasks', nargs='*', default=[])
@@ -135,6 +139,8 @@ def main():
     p.add_argument('--fp32', action='store_true', help='FP32 inference (default BF16, as in the eval runs)')
     p.add_argument('--dry-run', action='store_true')
     a = p.parse_args()
+    if a.distractor_source == 'library' and not a.library:
+        p.error('--library is required with --distractor-source library')
     out = Path(a.output)
     out.mkdir(parents=True, exist_ok=False)
     aug = load_augment(a.source)

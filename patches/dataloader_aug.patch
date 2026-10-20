@@ -23,13 +23,14 @@ index 6c34523..74cf469 100644
          sampler = StatefulDistributedSampler(
 diff --git a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/augment.py b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/augment.py
 new file mode 100644
-index 0000000..a324db1
+index 0000000..381f239
 --- /dev/null
 +++ b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/augment.py
-@@ -0,0 +1,724 @@
+@@ -0,0 +1,961 @@
 +"""Deterministic CPU-only augmentation; no simulator or evaluation data access."""
 +from functools import lru_cache
 +from pathlib import Path
++import colorsys
 +import hashlib
 +import json
 +import math
@@ -379,6 +380,7 @@ index 0000000..a324db1
 +                raise ValueError(f'{operation}.p must be in [0,1]')
 +        if config.get('profile') == 'v2' and config.get('texture',{}).get('source') == 'robotwin_seen':
 +            texture_files(config['texture']['seen_dir'])
++        validate_distractor_source(config.get('distractor', {}))
 +        if config.get('texture',{}).get('source') == ORACLE_SOURCE:
 +            if config.get('profile') != 'v2':
 +                raise ValueError('oracle texture source is only defined for profile v2')
@@ -557,6 +559,8 @@ index 0000000..a324db1
 +
 +
 +def plan_distractors(config, task, masks, rng):
++    if config.get('source', 'library') != 'library':
++        raise ValueError('distractor.source procedural requires distractor.placement: v2b')
 +    root, library = distractor_library(config['library_dir'])
 +    candidates = [e for e in library if e['task'] != task]
 +    if not candidates:
@@ -656,11 +660,18 @@ index 0000000..a324db1
 +
 +def plan_distractors_v2b(config, task, camera, masks, image, rng, focus=None):
 +    """Distractors on any configured camera. Optional placement near existing objects
-+    (hard negatives) and, under idle-arm focus, inside the idle arm's half of the head view."""
-+    root, library = distractor_library(config['library_dir'])
-+    candidates = [e for e in library if e['task'] != task]
-+    if not candidates or not masks:
-+        return []
++    (hard negatives) and, under idle-arm focus, inside the idle arm's half of the head view.
++    distractor.source 'library' (default) pastes release cutouts; 'procedural' (V4) renders
++    geometric objects instead and never opens the library directory."""
++    procedural = config.get('source', 'library') == 'procedural'
++    if procedural:
++        if not masks:
++            return []
++    else:
++        root, library = distractor_library(config['library_dir'])
++        candidates = [e for e in library if e['task'] != task]
++        if not candidates or not masks:
++            return []
 +    allowed = np.logical_and.reduce([m for m in masks])
 +    allowed = cv2.erode(allowed.astype(np.uint8), np.ones((7, 7), np.uint8)).astype(bool)
 +    h, w = allowed.shape
@@ -673,9 +684,17 @@ index 0000000..a324db1
 +    lo, hi = (1.0, 1.0) if camera == HEAD_CAMERA else tuple(config.get('wrist_scale', (1.5, 3.0)))
 +    placements = []
 +    for _ in range(int(rng.integers(1, config.get('max_count', 4) + 1))):
-+        entry = candidates[int(rng.integers(len(candidates)))]
-+        source = read_cutout(str(root / entry['file']))
-+        base = rng.uniform(.5, 1.2) * w / 320 * rng.uniform(lo, hi)
++        if procedural:
++            # Rendered directly at its final size (height in px of a 320-wide frame, times
++            # the wrist scale) so close-up wrist views are not upsampled; base 1 = no resize.
++            pc = config.get('procedural', {})
++            s0, s1 = pc.get('size', PROCEDURAL_SIZE)
++            source = procedural_distractor(rng, pc, rng.uniform(s0, s1) * w / 320 * rng.uniform(lo, hi))
++            base = 1.0
++        else:
++            entry = candidates[int(rng.integers(len(candidates)))]
++            source = read_cutout(str(root / entry['file']))
++            base = rng.uniform(.5, 1.2) * w / 320 * rng.uniform(lo, hi)
 +        flip = rng.random() < .5
 +        near = len(anchors) > 0 and rng.random() < config.get('near_object_p', 0.5)
 +        shadow = float(rng.uniform(.25, .45)) if config.get('shadow', True) else 0.0
@@ -751,6 +770,224 @@ index 0000000..a324db1
 +
 +    left, right = still(arm[:, :half], grip[:, 0]), still(arm[:, half:], grip[:, 1])
 +    return 'left' if left and not right else 'right' if right and not left else None
++
++
++# ---------------------------------------------------------------------------
++# V4: procedural geometric distractors (distractor.source: procedural).
++# Purpose: break the "non-white thing in front of the gripper => move/grasp" shortcut.
++# Objects are drawn from scratch (no release cutouts, no simulator, no external or
++# evaluation assets): 5 primitive shapes with Lambert shading, Phong highlight and
++# soft anti-aliased edges; colour CLASS is uniform (incl. white, grey, metal) so
++# colourfulness no longer predicts "task object".
++# ---------------------------------------------------------------------------
++
++PROCEDURAL_SHAPES = ('box', 'cylinder', 'bottle', 'sphere', 'bowl')
++# Hand-set HSV ranges (hue in degrees, s, v in [0, 1]); not fitted to any dataset.
++PROCEDURAL_COLORS = {
++    'red': ((-10, 8), (.65, .95), (.55, .90)),
++    'orange': ((18, 35), (.70, .95), (.75, .95)),
++    'yellow': ((45, 60), (.60, .90), (.80, .95)),
++    'green': ((90, 150), (.50, .85), (.40, .80)),
++    'cyan': ((170, 195), (.50, .85), (.55, .85)),
++    'blue': ((200, 240), (.55, .90), (.45, .85)),
++    'purple': ((260, 300), (.40, .75), (.40, .75)),
++    'pink': ((310, 345), (.30, .60), (.80, .95)),
++    'brown': ((18, 35), (.45, .75), (.25, .50)),
++    'black': ((0, 360), (.00, .20), (.06, .18)),
++    'grey': ((0, 360), (.00, .06), (.40, .70)),
++    'white': ((0, 360), (.00, .05), (.88, .98)),
++    'metal': ((0, 360), (.00, .08), (.60, .85)),   # silver; 25% brass, see procedural_color
++}
++SUPERSAMPLE = 3
++PROCEDURAL_SIZE = (16, 44)        # object height in px for a 320-px-wide frame, before wrist scale
++DISTRACTOR_SOURCES = ('library', 'procedural')
++
++
++def validate_distractor_source(dc):
++    """Config check only (consumes no RNG, so default paths stay bitwise identical)."""
++    source = dc.get('source', 'library')
++    if source not in DISTRACTOR_SOURCES:
++        raise ValueError(f'Unknown distractor.source: {source}')
++    if source == 'procedural':
++        if dc.get('placement', 'v1') != 'v2b':
++            raise ValueError('distractor.source procedural requires distractor.placement: v2b')
++        pc = dc.get('procedural', {})
++        for name in pc.get('shapes', PROCEDURAL_SHAPES):
++            if name not in PROCEDURAL_SHAPES:
++                raise ValueError(f'Unknown procedural shape: {name}')
++        for name in pc.get('colors', PROCEDURAL_COLORS):
++            if name not in PROCEDURAL_COLORS:
++                raise ValueError(f'Unknown procedural colour class: {name}')
++        s0, s1 = pc.get('size', PROCEDURAL_SIZE)
++        if not 4 <= s0 <= s1:
++            raise ValueError('distractor.procedural.size must satisfy 4 <= min <= max')
++
++
++def procedural_color(rng, name):
++    (h0, h1), (s0, s1), (v0, v1) = PROCEDURAL_COLORS[name]
++    hue, sat, val = rng.uniform(h0, h1) % 360, rng.uniform(s0, s1), rng.uniform(v0, v1)
++    if name == 'metal' and rng.random() < .25:                  # brass
++        hue, sat = rng.uniform(38, 50), rng.uniform(.35, .55)
++    return np.array(colorsys.hsv_to_rgb(hue / 360, sat, val), np.float32)
++
++
++def _material(rng, name):
++    """(ambient, diffuse, specular, shininess, metallic)"""
++    if name == 'metal':
++        return .50, .45, float(rng.uniform(.7, 1.0)), float(rng.uniform(18, 40)), True
++    if rng.random() < .5:                                         # glossy plastic / ceramic
++        return .38, .62, float(rng.uniform(.3, .6)), float(rng.uniform(25, 60)), False
++    return .40, .62, float(rng.uniform(.05, .15)), 8.0, False    # matte
++
++
++def _shade(normal, base, light, material):
++    """Lambert + Phong (+ environment bands for metal) for an (N, 3) array of normals."""
++    amb, kd, ks, shin, metallic = material
++    n = normal / np.maximum(np.linalg.norm(normal, axis=-1, keepdims=True), 1e-6)
++    lam = np.clip(n @ light, 0, 1)
++    half = light + np.array([0, 0, 1], np.float32)
++    half /= np.linalg.norm(half)
++    spec = np.clip(n @ half, 0, 1) ** shin
++    col = base[None] * (amb + kd * lam)[:, None]
++    if metallic:   # environment bands: bright ceiling above, darker floor below the horizon
++        col = col * (.95 + .25 * np.tanh(-6 * n[:, 1] - 1.5) + .08 * np.sin(9 * n[:, 0]))[:, None]
++        spec_rgb = .5 * base + .5
++    else:
++        spec_rgb = np.ones(3, np.float32)
++    return np.clip(col + ks * spec[:, None] * spec_rgb, 0, 1)
++
++
++def _revolve_normals(xx, yy, cx, radius, dr):
++    """Surface of revolution about a vertical axis; dr = d radius / d y (y down)."""
++    u = np.clip((xx - cx) / np.maximum(radius, 1e-6), -1, 1)
++    return np.stack([u, -dr, np.sqrt(1 - u ** 2)], -1).astype(np.float32)
++
++
++def _supersample(height):
++    """Anti-aliasing factor: 3x for small head-view objects, 2x for large wrist-view ones."""
++    return SUPERSAMPLE if height < 48 else 2
++
++
++def _render(rng, shape, height, color_name, light):
++    base = procedural_color(rng, color_name)
++    mat = _material(rng, color_name)
++    elev = float(rng.uniform(.25, .5))                             # b/a of horizontal ellipses
++    if shape == 'sphere':
++        H = W = height
++    elif shape == 'box':
++        H = height; W = round(height * rng.uniform(.8, 1.8))
++    elif shape == 'bowl':
++        H = height; W = round(height * rng.uniform(1.6, 2.3))
++    elif shape == 'cylinder':
++        H = height; W = round(height * rng.uniform(.45, 1.1))
++    else:  # bottle
++        H = height; W = round(height * rng.uniform(.3, .5))
++    H, W = max(H, 4), max(W, 4)
++    s = _supersample(H)
++    h, w = H * s, W * s
++    yy, xx = np.mgrid[:h, :w].astype(np.float32) + .5
++    alpha = np.zeros((h, w), np.float32)
++    rgb = np.zeros((h, w, 3), np.float32)
++
++    def put(mask, normal, colour, gain=1.0):
++        """Shade only the pixels of `mask`; later parts overwrite earlier ones (painter order)."""
++        if not mask.any():
++            return
++        normal = np.asarray(normal, np.float32)
++        nm = normal[mask] if normal.ndim == 3 else np.broadcast_to(normal, (int(mask.sum()), 3))
++        g = gain[mask][:, None] if isinstance(gain, np.ndarray) else gain
++        rgb[mask] = _shade(nm, colour, light, mat) * g
++        alpha[mask] = 1
++
++    if shape == 'sphere':
++        r = w / 2
++        u, v = (xx - r) / r, (yy - r) / r
++        put(u ** 2 + v ** 2 <= 1, np.stack([u, v, np.sqrt(np.clip(1 - u ** 2 - v ** 2, 0, 1))], -1), base)
++    elif shape in ('cylinder', 'bottle'):
++        a = w / 2
++        b = a * elev
++        top, bottom = b, h - b
++        if shape == 'cylinder':
++            radius = np.full_like(yy, a); dr = np.zeros_like(yy)
++            cap_r = a
++        else:
++            neck = a * rng.uniform(.28, .42)
++            t = (yy - top) / (bottom - top)                         # 0 at top, 1 at bottom
++            sh0, sh1 = rng.uniform(.18, .3), rng.uniform(.38, .5)  # neck end / shoulder end
++            k = np.clip((t - sh0) / (sh1 - sh0), 0, 1)
++            radius = neck + (a - neck) * k * k * (3 - 2 * k)       # smoothstep shoulder
++            dr = np.where((t > sh0) & (t < sh1), (a - neck) * 6 * k * (1 - k) / ((sh1 - sh0) * (bottom - top)), 0)
++            cap_r = neck
++        inside = (np.abs(xx - a) <= radius) & (yy >= top) & \
++                 (yy <= bottom + b * np.sqrt(np.clip(1 - ((xx - a) / a) ** 2, 0, 1)))
++        put(inside, _revolve_normals(xx, yy, a, radius, dr * elev * 2), base)
++        cap = ((xx - a) / cap_r) ** 2 + ((yy - top) / (cap_r * elev)) ** 2 <= 1
++        cap_n = (0, -math.cos(math.asin(elev)), elev)
++        if shape == 'bottle':
++            cap_base = procedural_color(rng, str(rng.choice(['white', 'black', 'red', 'blue', 'grey'])))
++            lid = (np.abs(xx - a) <= cap_r * 1.08) & (yy >= top) & (yy <= top + (bottom - top) * rng.uniform(.06, .1))
++            put(lid, _revolve_normals(xx, yy, a, np.full_like(yy, cap_r * 1.08), 0 * yy), cap_base)
++            put(cap, cap_n, cap_base)
++        else:
++            put(cap, cap_n, base)
++    elif shape == 'box':
++        depth = h * rng.uniform(.25, .45)                          # projected top-face depth
++        side = w * rng.uniform(.18, .35) * (1 if rng.random() < .5 else -1)
++        fw = w - abs(side)
++        x0 = 0 if side > 0 else abs(side)
++        front = np.array([[x0, depth], [x0 + fw, depth], [x0 + fw, h], [x0, h]])
++        topf = np.array([[x0, depth], [x0 + fw, depth], [x0 + fw + side, 0], [x0 + side, 0]])
++        sidef = (np.array([[x0 + fw, depth], [x0 + fw + side, 0], [x0 + fw + side, h - depth], [x0 + fw, h]])
++                 if side > 0 else np.array([[x0, depth], [x0 + side, 0], [x0 + side, h - depth], [x0, h]]))
++        sgn = 1 if side > 0 else -1
++        gradient = .92 + .08 * (1 - yy / h)                        # faces are not perfectly flat
++        for poly, normal in ((front, (-.25 * sgn, 0, .97)), (sidef, (.9 * sgn, 0, .43)), (topf, (0, -.85, .52))):
++            m = np.zeros((h, w), np.uint8)
++            cv2.fillPoly(m, [np.round(poly).astype(np.int32)], 1)
++            put(m.astype(bool), normal, base, gradient)
++    else:  # bowl
++        A = w / 2
++        b = A * elev
++        depth = h - b
++        u = (xx - A) / A
++        vb = (yy - b) / depth                                      # outer body: lower half-ellipse
++        put((u ** 2 + vb ** 2 <= 1) & (yy >= b),
++            np.stack([u, vb * .8 + .2, np.sqrt(np.clip(1 - u ** 2 - vb ** 2, 0, 1)) + .1], -1), base)
++        put(u ** 2 + ((yy - b) / b) ** 2 <= 1, (0, -.9, .44), base, 1.05)     # rim
++        ui, vi = (xx - A) / (A * .9), (yy - b) / (b * .9)
++        # concave interior: the far (upper) wall faces the camera, the near wall faces away
++        put(ui ** 2 + vi ** 2 <= 1, np.stack([-ui * .8, .3 - .6 * vi, .6 + .4 * np.clip(-vi, 0, 1)], -1), base, .9)
++    # low-frequency material variation
++    var = cv2.resize(rng.normal(0, 1, (4, 4)).astype(np.float32), (w, h), interpolation=cv2.INTER_CUBIC)
++    rgb *= (1 + .025 * var)[..., None]
++    rgba = np.dstack([np.clip(rgb, 0, 1) * alpha[..., None], alpha])
++    small = cv2.resize(rgba, (W, H), interpolation=cv2.INTER_AREA)  # premultiplied: no dark fringe
++    a = small[..., 3:]
++    col = np.where(a > 1e-3, small[..., :3] / np.maximum(a, 1e-3), 0)
++    return np.dstack([np.clip(col * 255, 0, 255), np.clip(a * 255, 0, 255)]).round().astype(np.uint8)
++
++
++def procedural_spec(rng, config):
++    """(shape, colour class, light direction). Shape and colour CLASS are each uniform, so
++    white/grey/metal objects are as frequent as any hue."""
++    shapes = tuple(config.get('shapes', PROCEDURAL_SHAPES))
++    colors = tuple(config.get('colors', tuple(PROCEDURAL_COLORS)))
++    for name in shapes:
++        if name not in PROCEDURAL_SHAPES:
++            raise ValueError(f'Unknown procedural shape: {name}')
++    for name in colors:
++        if name not in PROCEDURAL_COLORS:
++            raise ValueError(f'Unknown procedural colour class: {name}')
++    shape = shapes[int(rng.integers(len(shapes)))]
++    color = colors[int(rng.integers(len(colors)))]
++    light = np.array([rng.uniform(-.7, .7), -rng.uniform(.5, .9), rng.uniform(.5, .8)], np.float32)
++    return shape, color, light / np.linalg.norm(light)
++
++
++def procedural_distractor(rng, config, height):
++    """RGBA uint8 patch of one procedural object, `height` px tall, base on the bottom row."""
++    shape, color, light = procedural_spec(rng, config)
++    return _render(rng, shape, max(4, int(round(height))), color, light)
 diff --git a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/base_dataset.py b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/base_dataset.py
 index 71d62a0..ddd5aa6 100644
 --- a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/base_dataset.py

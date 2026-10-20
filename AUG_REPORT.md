@@ -165,3 +165,43 @@ LR 5e-5 -> 1e-5 cosine、3000 steps、每 1000 保存均标为待用户确认，
 - 预览图：`evidence/augmentation_preview/revision_20261019_v2b/`（每张 3 行 = 头部/左腕/右腕；4 列 = 原图、V2b 普通、闲置左手、闲置右手）。
 - 已知局限：叠加是全图的，物体和机械臂也会被轻微染色（无分割的代价）；演示库缺少白色/灰色物体；腕部与头部的干扰物位置互不一致；
   头部闲置侧放置偶有失败（该样本退化为只有纹理）。
+
+## 2026-10-20 V4：程序生成的几何干扰物（打破 shortcut）
+
+动机与 V2b 相同：clean 训练的策略"夹爪前面有非白色东西就移动/抓取"。V2b 的干扰物来自 release 首帧抠图，抠图规则丢弃了
+无彩色物体，所以面前出现的东西几乎都是彩色的，"彩色 = 该去抓"仍然成立。V4 把干扰物换成**程序生成的几何干扰物**，
+颜色按大类均匀抽样（含白、灰、金属色），用途是打破这个 shortcut，不是模拟真实物体或 randomized 场景。
+
+实现（只改 `augment.py`，其余 6 个补丁文件逐字节不变；重新生成 patch 与 `docs/patched_source_sha256.json`）：
+- 新增 `distractor.source`：`library`（默认，原路径）/ `procedural`。`procedural` 只在 `placement: v2b` 下可用，
+  否则配置校验直接报错；校验不消耗随机数。
+- 形状：长方体、圆柱、瓶身加瓶颈（瓶盖另取颜色）、球、碗状半椭圆；Lambert + Phong 高光，金属加环境反射带；
+  光照方向随机、来自上方；超采样（小物体 3×、高度 ≥48 px 时 2×）后按预乘 alpha 下采样，边缘柔和无黑边；
+  低频亮度扰动 ±2.5%。物体按最终尺寸直接渲染（`size` × 画面宽/320 × 腕部 `wrist_scale`）。
+- 颜色：13 个大类均匀抽样，类内在手设 HSV 范围取值；金属 75% 银色、25% 黄铜色。范围手设，未用任何数据统计。
+- 新增 `configs/train_8xA100_aug_v4.yaml`：与 V2b 相比只多 `source: procedural` 与 `procedural:` 参数、去掉 `library_dir`（有测试逐键核对）。
+- `scripts/shortcut_probe.py` 新增 `--distractor-source`（默认 `library`，行为不变）。
+- 新增 `scripts/compare_aug_versions.py`（新旧 augment.py 逐张量回归）与 `scripts/preview_v4_distractors.py`（对比图 + 放置统计）。
+
+合规：零仿真调用；不读外部数据、unseen 资产或任何图片素材（procedural 路径不打开 `library_dir`，有测试）；
+标签、指令、state 处理均不变；教师仍只做几何。按"训练期视觉增广"处理，但贴合成物体未在允许清单中逐项列出，
+**⚠️ 规则灰区，建议向主办方确认**（与 V2 seen 纹理一并确认）。
+
+验证（本次 CPU 环境：Python 3.12、torch 2.8.0、numpy 1.26.4、opencv 4.11.0.86、Pillow 11.3.0，版本取自仓库锁定清单）：
+- 逐位回归：上一 commit 与本次的 augment.py，在 V1 / V2 / V2b / V3 四个配置上各 120 个样本（当前帧 + 未来帧 × 三相机，
+  学生/教师共 1440 个张量），**全部 torch.equal**。回归确实走到了被比较的分支：V2 放置 33 个、V2b 放置 208 个库干扰物，
+  V2b 中闲置手左/右/无三种情况轮换。输入是从上一版预览图裁出的 4 个任务 clean 帧，纹理和抠图库是临时夹具
+  （见 `evidence/augmentation_validation/v4/regression_v1_v2_v2b_v3.json`）。
+- 单元测试：新增 8 项（显式 `library` 与默认逐位相同；procedural 不读库且保持教师干净/当前未来一致；5 形状 × 13 颜色类
+  均有软边缘、有明暗、底边贴底；白色物体无彩色但有明暗；形状与颜色类均匀；确定性且不受全局 RNG 影响；腕部按最终尺寸渲染；
+  配置校验；V4 配置 = V2b + procedural）。全部 35 项中 34 项在本环境通过，日志 `evidence/augmentation_validation/v4/cpu_tests.txt`。
+  `test_all_2500` 需要服务器上完整的 2500 条 release 数据和转换 provenance，本环境没有数据，**未运行**（本次未改动其覆盖的
+  seen 映射代码），训练前须在服务器上重跑全部测试。
+- 放置统计（同一批裁出帧，每任务每相机 30 次，`placement.json`）：至少放上一个的比例 头部 72.5% / 左腕 86.7% / 右腕 70.8%，
+  平均 1.46–1.74 个；头部闲置侧约束 276/276 满足。规划 + 粘贴耗时中位数 头部 12 ms、腕部 17–18 ms（单线程 CPU），
+  按 `distractor.p` 0.5 与三相机摊到每个样本约 +20–25 ms，真实训练吞吐量仍须在 GPU 冒烟时测量。
+- 预览：`evidence/augmentation_preview/revision_20261020_v4/`，已逐张查看。
+
+已知局限：几何体都直立，没有倒放、旋转、纹理图案或文字；光照是简化模型；头部画面桌面 mask 小时常放不下（与 V2b 相同）；
+预览与统计用的是 JPEG 再压缩的中途帧，正式训练前须在服务器上用 `--root` 重新生成并复查；
+V4 训练后的 shortcut probe 应以 `library` 抠图物体为主要判据（procedural 物体是训练分布内的）。

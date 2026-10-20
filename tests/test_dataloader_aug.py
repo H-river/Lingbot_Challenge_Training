@@ -17,6 +17,11 @@ def module(name,path):
 aug=module('aug_under_test',SOURCE/'lingbotvla/data/vla_data/augment.py')
 
 
+def json_dump(obj):
+    import json
+    return json.dumps(obj,sort_keys=True)
+
+
 def config(profile='v1'):
     return {'profile':profile,'teacher_uses_clean':True,'color':{'p':1},'geometric':{'p':1},'texture':{'p':0},'distractor':{'p':0}}
 
@@ -373,6 +378,115 @@ class Contracts(unittest.TestCase):
         self.assertIn((0,'left'),frames);self.assertIn((10,'left'),frames)
         self.assertFalse(any(t+50>60 for t,s in frames if s=='left'))      # chunk must not overlap left-arm motion
         self.assertFalse(any(s=='right' for _,s in frames))
+
+    # ------------------------- V4 (procedural distractors) -------------------------
+    @staticmethod
+    def v4_config(cfg):
+        c=copy.deepcopy(cfg);c['distractor'].pop('library_dir',None)
+        c['distractor'].update(source='procedural',procedural={'size':[16,44]})
+        return c
+
+    def test_v4_explicit_library_source_matches_default(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            img,cams,colors,cfg=self.v2b_fixture(Path(tmp))
+            explicit=copy.deepcopy(cfg);explicit['distractor']['source']='library'
+            t={c:torch.from_numpy(img.transpose(2,0,1).copy()) for c in cams}
+            with patch.object(aug,'episode_colors',return_value=colors):
+                for i in range(12):
+                    a=aug.SampleAugment(cfg,42,0,i,'unused','task').apply_pair(t,t)
+                    b=aug.SampleAugment(explicit,42,0,i,'unused','task').apply_pair(t,t)
+                    for x,y in zip(a,b):
+                        self.assertEqual(set(x),set(y))
+                        for c in x:self.assertTrue(torch.equal(x[c],y[c]))
+
+    def test_v4_procedural_never_reads_library_and_keeps_v2b_contracts(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            img,cams,colors,cfg=self.v2b_fixture(Path(tmp))
+            c=self.v4_config(cfg);c['texture']['p']=0
+            t={k:torch.from_numpy(img.transpose(2,0,1).copy()) for k in cams}
+            changed=0
+            with patch.object(aug,'episode_colors',return_value=colors), \
+                 patch.object(aug,'distractor_library',side_effect=AssertionError('read library')), \
+                 patch.object(aug,'read_cutout',side_effect=AssertionError('read cutout')):
+                for i in range(10):
+                    s,te,fs,ft=aug.SampleAugment(c,42,0,i,'unused','task').apply_pair(t,{k:v.clone() for k,v in t.items()})
+                    for k in cams:
+                        self.assertTrue(torch.equal(te[k],t[k]));self.assertTrue(torch.equal(ft[k],t[k]))   # teacher clean
+                        self.assertTrue(torch.equal(s[k],fs[k]))                                            # current == future
+                        changed+=int(not torch.equal(s[k],t[k]))
+            self.assertGreater(changed,10)
+
+    def test_v4_patch_shapes_colours_and_shading(self):
+        for si,shape in enumerate(aug.PROCEDURAL_SHAPES):
+            for ci,colour in enumerate(aug.PROCEDURAL_COLORS):
+                p=aug.procedural_distractor(aug.sample_rng(3,si,ci,'p'),{'shapes':[shape],'colors':[colour]},40)
+                self.assertEqual(p.dtype,np.uint8);self.assertEqual(p.shape[0],40);self.assertEqual(p.shape[2],4)
+                alpha=p[...,3]>127
+                self.assertGreater(alpha.mean(),.25,(shape,colour))
+                self.assertTrue(alpha[-3:].any(),(shape,colour))                         # base on the bottom rows
+                self.assertTrue((p[...,3]==0).any() and ((p[...,3]>0)&(p[...,3]<255)).any())  # soft anti-aliased edge
+                lum=p[...,:3].astype(float).mean(-1)[alpha]
+                self.assertGreater(lum.std(),4,(shape,colour))                            # shaded, not a flat sticker
+        whites=[aug.procedural_distractor(aug.sample_rng(5,0,i,'w'),{'shapes':['sphere'],'colors':['white']},40) for i in range(5)]
+        for w in whites:
+            px=w[...,:3][w[...,3]>127].astype(int)
+            self.assertLess(np.percentile(px.max(-1)-px.min(-1),90),25)                  # achromatic
+            self.assertGreater(np.percentile(px.mean(-1),90),200)                         # bright
+            self.assertGreater(px.mean(-1).max()-px.mean(-1).min(),60)                    # shading / highlight visible
+
+    def test_v4_colour_classes_and_shapes_uniform(self):
+        from collections import Counter
+        n=6500;shapes,colours=Counter(),Counter()
+        for i in range(n):
+            s,c,light=aug.procedural_spec(aug.sample_rng(1,0,i,'spec'),{})
+            shapes[s]+=1;colours[c]+=1
+            self.assertAlmostEqual(float(np.linalg.norm(light)),1,places=5);self.assertLess(light[1],0)   # lit from above
+        self.assertEqual(set(colours),set(aug.PROCEDURAL_COLORS));self.assertTrue({'white','grey','metal'}<=set(colours))
+        for counts in (shapes,colours):
+            expected=n/len(counts)
+            self.assertLess(sum((v-expected)**2/expected for v in counts.values()),3*len(counts))   # loose chi-square
+
+    def test_v4_deterministic_and_rng_scoped(self):
+        a=aug.procedural_distractor(aug.sample_rng(1,2,3,'d'),{},30)
+        b=aug.procedural_distractor(aug.sample_rng(1,2,3,'d'),{},30)
+        torch.manual_seed(7);np.random.seed(7)
+        c=aug.procedural_distractor(aug.sample_rng(1,2,3,'d'),{},30)
+        self.assertTrue(np.array_equal(a,b) and np.array_equal(a,c))
+        self.assertFalse(np.array_equal(a,aug.procedural_distractor(aug.sample_rng(1,2,4,'d'),{},30)))
+
+    def test_v4_wrist_objects_rendered_at_final_size(self):
+        img=np.full((240,320,3),235,np.uint8);table=np.ones((240,320),bool)
+        d={'source':'procedural','procedural':{'size':[20,20]},'max_count':1,'near_object_p':0,'wrist_scale':[2.0,2.0]}
+        heights={cam:[p.shape[0] for i in range(10) for _,_,p,_ in aug.plan_distractors_v2b(d,'task',cam,[table],img,aug.sample_rng(4,0,i,cam))]
+                 for cam in ('camera_top','camera_wrist_left')}
+        self.assertTrue(heights['camera_top'] and heights['camera_wrist_left'])
+        self.assertTrue(all(h==20 for h in heights['camera_top']))
+        self.assertTrue(all(h==40 for h in heights['camera_wrist_left']))
+
+    def test_v4_validation(self):
+        base={'profile':'v2','texture':{'p':0},'distractor':{'p':1,'placement':'v2b','source':'procedural'}}
+        aug.SampleAugment(base,42,0,0,'unused','task')
+        for bad in ({'source':'cutouts'},{'placement':'v1'},{'procedural':{'shapes':['cone']}},
+                    {'procedural':{'colors':['gold']}},{'procedural':{'size':[30,10]}}):
+            c=copy.deepcopy(base);c['distractor'].update(bad)
+            with self.assertRaises(ValueError):aug.SampleAugment(c,42,0,0,'unused','task')
+        with self.assertRaises(ValueError):aug.plan_distractors({'source':'procedural'},'task',[],aug.sample_rng(0,0,0))
+
+    def test_v4_config_is_v2b_plus_procedural_source(self):
+        import yaml
+        root=Path(__file__).resolve().parents[1]/'configs'
+        v2b=yaml.safe_load((root/'train_8xA100_aug_v2b.yaml').read_text())
+        v4=yaml.safe_load((root/'train_8xA100_aug_v4.yaml').read_text())
+        dv4=v4['data']['aug'].pop('distractor');dv2b=v2b['data']['aug'].pop('distractor')
+        self.assertEqual(v4,v2b)                                                             # everything else identical
+        self.assertEqual(dv4.pop('source'),'procedural');self.assertIn('procedural',dv4)
+        procedural=dv4.pop('procedural');dv2b.pop('library_dir')
+        self.assertEqual(dv4,dv2b)
+        self.assertEqual(set(procedural['shapes']),set(aug.PROCEDURAL_SHAPES))
+        self.assertEqual(set(procedural['colors']),set(aug.PROCEDURAL_COLORS))
+        self.assertNotIn('unseen',json_dump(v4)+json_dump(procedural))
 
     def test_library_reproducible(self):
         import hashlib,json,h5py,cv2

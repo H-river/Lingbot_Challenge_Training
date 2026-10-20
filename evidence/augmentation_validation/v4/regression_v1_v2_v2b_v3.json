@@ -1,0 +1,59 @@
+{
+  "configs": {
+    "train_8xA100_aug_v1.yaml": {
+      "bitwise_equal": 1440,
+      "differing_pixels": 0,
+      "distractor": "v1/library",
+      "distractors_placed": 0,
+      "pass": true,
+      "student_views_changed_by_augmentation": 252,
+      "tensors": 1440,
+      "texture": "mask/procedural"
+    },
+    "train_8xA100_aug_v2.yaml": {
+      "bitwise_equal": 1440,
+      "differing_pixels": 0,
+      "distractor": "v1/library",
+      "distractors_placed": 33,
+      "pass": true,
+      "student_views_changed_by_augmentation": 286,
+      "tensors": 1440,
+      "texture": "mask/robotwin_seen"
+    },
+    "train_8xA100_aug_v2b.yaml": {
+      "bitwise_equal": 1440,
+      "differing_pixels": 0,
+      "distractor": "v2b/library",
+      "distractors_placed": 208,
+      "pass": true,
+      "student_views_changed_by_augmentation": 306,
+      "tensors": 1440,
+      "texture": "overlay/procedural"
+    },
+    "train_8xA100_aug_v3_ORACLE.yaml": {
+      "bitwise_equal": 1440,
+      "differing_pixels": 0,
+      "distractor": "v1/library",
+      "distractors_placed": 33,
+      "pass": true,
+      "student_views_changed_by_augmentation": 286,
+      "tensors": 1440,
+      "texture": "mask/robotwin_seen_plus_unseen_ORACLE"
+    }
+  },
+  "fixture": "temporary: 6 procedural seen/unseen tiles, synthetic RGBA blobs as cutout library (see scripts/compare_aug_versions.py)",
+  "fixture_cutouts": 4,
+  "frames": "4 tasks x 3 cameras cropped from evidence/augmentation_preview/revision_20261019_v2b/*.jpg (column 1, JPEG)",
+  "new": "patches/dataloader_aug.patch @ this commit -> augment.py",
+  "new_sha256": "7a1a0368081201f283a0fbdeaf9fa6330278ed273091f76e3b125a2db2418b3e",
+  "old": "patches/dataloader_aug.patch @ e79508a (previous commit) -> augment.py",
+  "old_sha256": "51f8877a52a0a1fd9db92094fd4dc79247412f3c0450c0552458b8f1f861b142",
+  "pass": true,
+  "samples_per_config": 120,
+  "tasks": [
+    "click_bell",
+    "place_a2b_left",
+    "put_object_cabinet",
+    "stack_blocks_two"
+  ]
+}

@@ -95,7 +95,7 @@ bash train.sh /absolute/path/to/reviewed-clean-config.yaml
 
 本次 GitHub 交付只完成代码整理、语法/哈希/敏感内容检查和上传，不新增训练、仿真或提交。训练完成后保存产物，及时检查云资源计费并按需释放。
 
-## 数据增广（V1 / V2）
+## 数据增广（V1 / V2 / V2b / V3 / V4）
 
 增广只作用于 dataloader；默认 `data.aug: {profile: none}`，原有 `image_augment`
 默认关闭。V1 开启颜色、几何和 seen 指令替换；V2 增加纹理和外任务干扰物。
@@ -168,7 +168,30 @@ mask 之间（到桌面距离 + 到墙面距离 ≤ 28 px）且颜色接近任�
 名称含 `ORACLE`（非 oracle 运行反过来禁止含 `ORACLE`），并在旁边写 `<output_dir>.ORACLE_NOT_FOR_SUBMISSION`；
 指令、干扰物和其它所有路径仍由 `safe_path` 拒绝 unseen。不要从 V3 checkpoint 导出提交版本或在其上继续训练提交模型。
 
-干扰物库只读经 SHA 校验的 release clean 首帧。提取桌面 mask 内封闭组件，过滤
+**V4：程序生成的几何干扰物（`configs/train_8xA100_aug_v4.yaml`）。** 用途和 V2b 相同：打破"夹爪前面有非白色东西
+就移动/抓取"的 shortcut。V4 = V2b，只把干扰物来源从"release 首帧抠图库"换成 `distractor.source: procedural`：
+- 干扰物是**程序生成的几何体**，不是真实物体，也不是重新渲染的场景：长方体（3/4 视角三个面）、圆柱、瓶身加瓶颈（带瓶盖）、
+  球、碗状半椭圆（外壁 + 碗沿 + 内壁）。Lambert 明暗 + Phong 高光（金属额外加环境反射带），光照方向随机且来自上方，
+  超采样抗锯齿得到软边缘。物体底边在贴图底部，沿用 V2b 的接触阴影。
+- 颜色先**按颜色大类均匀抽样**（red/orange/yellow/green/cyan/blue/purple/pink/brown/black/grey/white/metal，13 类），
+  再在手设的 HSV 范围内取值；白、灰、金属（银色，25% 为黄铜色）和其它颜色一样常见。这补上了 V2b 抠图库缺白色/灰色物体
+  的缺口：只有"有彩色"的东西才会出现在面前，本身就是一种 shortcut 线索。HSV 范围是手设值，没有拟合任何数据集。
+- 形状均匀抽样；物体高度 `procedural.size: [16, 44]` px（以 320 宽画面计），腕部再乘 `wrist_scale`；直接按最终尺寸渲染，
+  腕部特写不会被放大糊掉。`shapes` / `colors` 可在配置里收窄。
+- 其余与 V2b 完全一致：纹理叠加、闲置手聚焦、靠近已有物体的 hard negative、接触阴影、教师只做几何、标签不变。
+  `procedural` 只能配合 `placement: v2b`（V1 放置方式会直接报错）。不读任何图片素材，也不打开 `library_dir`（有测试）。
+- 合规：不调用仿真、不用外部数据、不读 unseen 资产；所有随机数来自按 (seed, epoch, index, camera) 派生的样本 RNG。
+  按"训练期视觉增广"处理，但"往画面里贴合成物体"没有在允许清单里逐项列出，**⚠️ 规则灰区，建议和 V2 seen 纹理一起向主办方确认**。
+- V1 / V2 / V2b / V3 默认路径与上一版逐位一致：`scripts/compare_aug_versions.py` 用新旧两份 augment.py 在同一批样本上
+  逐张量比较（4 个配置各 120 个样本、1440 个张量，全部相同），结果在 `evidence/augmentation_validation/v4/`。
+- 预览：`evidence/augmentation_preview/revision_20261020_v4/`（每张 3 行 = 头部/左腕/右腕；5 列 = 原图、V2b（截自上一版
+  预览图）、V4 普通、V4 闲置左手、V4 闲置右手；`gallery.jpg` 是 5 种形状 × 13 个颜色类）。输入是从上一版预览图裁出的
+  clean 帧（JPEG 再压缩），桌面/墙面颜色在该帧上估计；V2b 列与 V4 列不是同一次随机抽样，只作外观对比。
+- 已知局限：几何体都是直立的，没有倒放/旋转、没有纹理图案和文字；渲染是简化光照，不是物理渲染；头部画面桌面 mask 小的帧
+  经常放不下（与 V2b 相同）。shortcut probe 可用 `--distractor-source procedural`，但 V4 训练过的模型见过这种物体分布，
+  判断 shortcut 是否被打破时应以默认的 `library`（抠图物体）结果为主。
+
+V1/V2/V2b 的干扰物库只读经 SHA 校验的 release clean 首帧（V4 不使用干扰物库）。提取桌面 mask 内封闭组件，过滤
 边界、下方区域、细长、暗色或缺少颜色信息的组件（因此也舍弃无彩色物体）。**这是保守启发式，不能保证与物体同色的机械臂部件
 均被排除**；必须审阅可视化和 mask 报告后再用于正式训练。无法区分桌面/墙面颜色
 时跳过墙面替换；也不宣称桌面 mask 对所有任务完美。
@@ -191,6 +214,10 @@ export PYTHONPATH="$AUG_SOURCE"
 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 python tests/test_dataloader_aug.py
 python scripts/build_distractor_library.py --root "$LINGBOT_ROOT" \
   --source "$AUG_SOURCE" --output /persistent/augmentation/distractors
+python scripts/compare_aug_versions.py --old /path/to/previous/augment.py --new "$AUG_SOURCE/lingbotvla/data/vla_data/augment.py" \
+  --frames /path/to/frames --configs configs/train_8xA100_aug_v{1,2,2b,3_ORACLE}.yaml
+python scripts/preview_v4_distractors.py --root "$LINGBOT_ROOT" --source "$AUG_SOURCE" \
+  --config configs/train_8xA100_aug_v4.yaml --output /persistent/augmentation/v4_preview
 python scripts/validate_aug_visuals.py --root "$LINGBOT_ROOT" \
   --source "$AUG_SOURCE" --output /persistent/augmentation/visuals \
   --library /persistent/augmentation/distractors \
