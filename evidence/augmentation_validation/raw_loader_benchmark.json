@@ -1,0 +1,31 @@
+{
+  "samples": 100,
+  "workers": 0,
+  "scope": "raw clean HDF5/JPEG + current/future RGB augmentation + student normalization; excludes LeRobot H264/tokenizer/state/action/model",
+  "results": {
+    "none": {
+      "seconds": [
+        0.8891739650000545,
+        0.9160587329999998,
+        0.9535460050001348
+      ],
+      "samples_per_second": 109.16330623530011
+    },
+    "v1": {
+      "seconds": [
+        5.064087012999835,
+        4.97214580800005,
+        4.933557425999879
+      ],
+      "samples_per_second": 20.11204092991454
+    },
+    "v2": {
+      "seconds": [
+        16.265416864000144,
+        8.371907056000055,
+        8.32925741500003
+      ],
+      "samples_per_second": 11.944709769362655
+    }
+  }
+}

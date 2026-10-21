@@ -19,3 +19,20 @@ __pycache__/
 *.hdf5
 *.h5
 *.mp4
+
+# Local-only training/eval assets and credentials
+/docker/vendor/
+/deliverables/
+/replay_bundles/
+/repos/RoboTwin/
+/repos/curobo/
+*.distcp
+*.ckpt
+*.bin
+*.tar
+*.tar.gz
+*.zip
+*.whl
+*.pem
+*.key
+*.ssh-incomplete

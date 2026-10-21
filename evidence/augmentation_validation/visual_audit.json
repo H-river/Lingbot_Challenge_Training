@@ -1,0 +1,2264 @@
+{
+  "samples": 100,
+  "seed": 42,
+  "texture_source": "robotwin_seen",
+  "mask_records": [
+    {
+      "task": "adjust_bottle",
+      "episode": 4,
+      "frame": 66,
+      "cameras": {
+        "camera_top": {
+          "table": 0.3043365478515625,
+          "wall": 0.06640625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.43402099609375,
+          "wall": 0.45501708984375,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "adjust_bottle",
+      "episode": 38,
+      "frame": 62,
+      "cameras": {
+        "camera_top": {
+          "table": 0.292327880859375,
+          "wall": 0.06640625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.4362945556640625,
+          "wall": 0.4557342529296875,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "beat_block_hammer",
+      "episode": 4,
+      "frame": 23,
+      "cameras": {
+        "camera_top": {
+          "table": 0.15228271484375,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.3340301513671875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.436309814453125,
+          "wall": 0.4549102783203125,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "beat_block_hammer",
+      "episode": 42,
+      "frame": 11,
+      "cameras": {
+        "camera_top": {
+          "table": 0.7063446044921875,
+          "wall": 0.066314697265625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.4322052001953125,
+          "wall": 0.4673919677734375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.60760498046875,
+          "wall": 0.1545257568359375,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "blocks_ranking_rgb",
+      "episode": 25,
+      "frame": 352,
+      "cameras": {
+        "camera_top": {
+          "table": 0.4637908935546875,
+          "wall": 0.06640625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.247161865234375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.4370574951171875,
+          "wall": 0.4511566162109375,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "blocks_ranking_rgb",
+      "episode": 48,
+      "frame": 328,
+      "cameras": {
+        "camera_top": {
+          "table": 0.362274169921875,
+          "wall": 0.040618896484375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.25634765625,
+          "wall": 0.31353759765625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.61077880859375,
+          "wall": 0.1844329833984375,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "blocks_ranking_size",
+      "episode": 25,
+      "frame": 385,
+      "cameras": {
+        "camera_top": {
+          "table": 0.4138641357421875,
+          "wall": 0.0531158447265625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.4294586181640625,
+          "wall": 0.4627685546875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.2212677001953125,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "blocks_ranking_size",
+      "episode": 38,
+      "frame": 213,
+      "cameras": {
+        "camera_top": {
+          "table": 0.0,
+          "wall": 0.056976318359375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.3228759765625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.41217041015625,
+          "wall": 0.4533538818359375,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "click_alarmclock",
+      "episode": 18,
+      "frame": 81,
+      "cameras": {
+        "camera_top": {
+          "table": 0.0,
+          "wall": 0.0416412353515625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.4319305419921875,
+          "wall": 0.4625091552734375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0382232666015625,
+          "wall": 0.1961822509765625,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "click_alarmclock",
+      "episode": 24,
+      "frame": 62,
+      "cameras": {
+        "camera_top": {
+          "table": 0.0,
+          "wall": 0.0482025146484375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.1110992431640625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.4361114501953125,
+          "wall": 0.45751953125,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "click_bell",
+      "episode": 20,
+      "frame": 42,
+      "cameras": {
+        "camera_top": {
+          "table": 0.1117095947265625,
+          "wall": 0.0534515380859375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.4319305419921875,
+          "wall": 0.4522857666015625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.1895751953125,
+          "wall": 0.04351806640625,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "click_bell",
+      "episode": 31,
+      "frame": 33,
+      "cameras": {
+        "camera_top": {
+          "table": 0.5721282958984375,
+          "wall": 0.06640625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.431915283203125,
+          "wall": 0.4577178955078125,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.165496826171875,
+          "wall": 0.04949951171875,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "dump_bin_bigbin",
+      "episode": 11,
+      "frame": 190,
+      "cameras": {
+        "camera_top": {
+          "table": 0.3240509033203125,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.4006805419921875,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.4745941162109375,
+          "wall": 0.3769683837890625,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "dump_bin_bigbin",
+      "episode": 22,
+      "frame": 304,
+      "cameras": {
+        "camera_top": {
+          "table": 0.509033203125,
+          "wall": 0.071044921875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.5263214111328125,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.43646240234375,
+          "wall": 0.4295654296875,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "grab_roller",
+      "episode": 3,
+      "frame": 26,
+      "cameras": {
+        "camera_top": {
+          "table": 0.3473663330078125,
+          "wall": 0.06640625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.26239013671875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.39459228515625,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "grab_roller",
+      "episode": 42,
+      "frame": 62,
+      "cameras": {
+        "camera_top": {
+          "table": 0.4093780517578125,
+          "wall": 0.06640625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.184295654296875,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "handover_block",
+      "episode": 8,
+      "frame": 101,
+      "cameras": {
+        "camera_top": {
+          "table": 0.419158935546875,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.462310791015625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.3299560546875,
+          "wall": 0.461151123046875,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "handover_block",
+      "episode": 37,
+      "frame": 18,
+      "cameras": {
+        "camera_top": {
+          "table": 0.5142669677734375,
+          "wall": 0.0634765625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.123565673828125,
+          "wall": 0.7139892578125,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.378387451171875,
+          "wall": 0.4673919677734375,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "handover_mic",
+      "episode": 22,
+      "frame": 153,
+      "cameras": {
+        "camera_top": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.421417236328125,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.172637939453125,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "handover_mic",
+      "episode": 47,
+      "frame": 175,
+      "cameras": {
+        "camera_top": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.5084228515625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.1357269287109375,
+          "wall": 0.5052337646484375,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "hanging_mug",
+      "episode": 9,
+      "frame": 153,
+      "cameras": {
+        "camera_top": {
+          "table": 0.269378662109375,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.1348724365234375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.2990264892578125,
+          "wall": 0.3942718505859375,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "hanging_mug",
+      "episode": 37,
+      "frame": 164,
+      "cameras": {
+        "camera_top": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.2891082763671875,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.6703338623046875,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "lift_pot",
+      "episode": 2,
+      "frame": 86,
+      "cameras": {
+        "camera_top": {
+          "table": 0.07891845703125,
+          "wall": 0.0584869384765625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "lift_pot",
+      "episode": 27,
+      "frame": 77,
+      "cameras": {
+        "camera_top": {
+          "table": 0.0663909912109375,
+          "wall": 0.0626068115234375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "move_can_pot",
+      "episode": 37,
+      "frame": 166,
+      "cameras": {
+        "camera_top": {
+          "table": 0.31878662109375,
+          "wall": 0.045501708984375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.347320556640625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.436187744140625,
+          "wall": 0.4630889892578125,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "move_can_pot",
+      "episode": 45,
+      "frame": 62,
+      "cameras": {
+        "camera_top": {
+          "table": 0.40863037109375,
+          "wall": 0.06640625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.1512451171875,
+          "wall": 0.2145843505859375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.4317169189453125,
+          "wall": 0.4657745361328125,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "move_pillbottle_pad",
+      "episode": 15,
+      "frame": 10,
+      "cameras": {
+        "camera_top": {
+          "table": 0.6707611083984375,
+          "wall": 0.066314697265625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.432098388671875,
+          "wall": 0.4631195068359375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.78033447265625,
+          "wall": 0.0531463623046875,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "move_pillbottle_pad",
+      "episode": 45,
+      "frame": 63,
+      "cameras": {
+        "camera_top": {
+          "table": 0.4476165771484375,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.1270599365234375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.43609619140625,
+          "wall": 0.452972412109375,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "move_playingcard_away",
+      "episode": 9,
+      "frame": 16,
+      "cameras": {
+        "camera_top": {
+          "table": 0.6931915283203125,
+          "wall": 0.06640625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.4319915771484375,
+          "wall": 0.45855712890625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.6590423583984375,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "move_playingcard_away",
+      "episode": 38,
+      "frame": 79,
+      "cameras": {
+        "camera_top": {
+          "table": 0.4026947021484375,
+          "wall": 0.0664215087890625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.0611572265625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.43621826171875,
+          "wall": 0.4536285400390625,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "move_stapler_pad",
+      "episode": 16,
+      "frame": 89,
+      "cameras": {
+        "camera_top": {
+          "table": 0.0,
+          "wall": 0.06011962890625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.4319610595703125,
+          "wall": 0.4570770263671875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.1743316650390625,
+          "wall": 0.370513916015625,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "move_stapler_pad",
+      "episode": 23,
+      "frame": 120,
+      "cameras": {
+        "camera_top": {
+          "table": 0.5161590576171875,
+          "wall": 0.04461669921875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.4267578125,
+          "wall": 0.455841064453125,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.593475341796875,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "open_laptop",
+      "episode": 21,
+      "frame": 154,
+      "cameras": {
+        "camera_top": {
+          "table": 0.27850341796875,
+          "wall": 0.06640625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.5693511962890625,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.43621826171875,
+          "wall": 0.457611083984375,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "open_laptop",
+      "episode": 46,
+      "frame": 142,
+      "cameras": {
+        "camera_top": {
+          "table": 0.394073486328125,
+          "wall": 0.0664215087890625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.431915283203125,
+          "wall": 0.466278076171875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.552703857421875,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "open_microwave",
+      "episode": 4,
+      "frame": 330,
+      "cameras": {
+        "camera_top": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.1977996826171875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.2881927490234375,
+          "wall": 0.4641876220703125,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "open_microwave",
+      "episode": 34,
+      "frame": 689,
+      "cameras": {
+        "camera_top": {
+          "table": 0.3275604248046875,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.339508056640625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.2880706787109375,
+          "wall": 0.360321044921875,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "pick_diverse_bottles",
+      "episode": 21,
+      "frame": 45,
+      "cameras": {
+        "camera_top": {
+          "table": 0.0585174560546875,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.151153564453125,
+          "wall": 0.2746734619140625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.056976318359375,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "pick_diverse_bottles",
+      "episode": 40,
+      "frame": 111,
+      "cameras": {
+        "camera_top": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.1265869140625,
+          "wall": 0.226898193359375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "pick_dual_bottles",
+      "episode": 11,
+      "frame": 78,
+      "cameras": {
+        "camera_top": {
+          "table": 0.1082916259765625,
+          "wall": 0.0380096435546875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.1548309326171875,
+          "wall": 0.228057861328125,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "pick_dual_bottles",
+      "episode": 14,
+      "frame": 16,
+      "cameras": {
+        "camera_top": {
+          "table": 0.3036956787109375,
+          "wall": 0.042388916015625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.049560546875,
+          "wall": 0.65753173828125,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.193359375,
+          "wall": 0.50579833984375,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_a2b_left",
+      "episode": 9,
+      "frame": 1,
+      "cameras": {
+        "camera_top": {
+          "table": 0.7214508056640625,
+          "wall": 0.06640625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.432220458984375,
+          "wall": 0.460205078125,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.4366302490234375,
+          "wall": 0.45672607421875,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_a2b_left",
+      "episode": 40,
+      "frame": 123,
+      "cameras": {
+        "camera_top": {
+          "table": 0.3785400390625,
+          "wall": 0.0381622314453125,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.42706298828125,
+          "wall": 0.454986572265625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.47137451171875,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_a2b_right",
+      "episode": 38,
+      "frame": 68,
+      "cameras": {
+        "camera_top": {
+          "table": 0.5428009033203125,
+          "wall": 0.06640625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.6221923828125,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.4362335205078125,
+          "wall": 0.4577178955078125,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_a2b_right",
+      "episode": 39,
+      "frame": 100,
+      "cameras": {
+        "camera_top": {
+          "table": 0.360260009765625,
+          "wall": 0.0664215087890625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.436370849609375,
+          "wall": 0.4544219970703125,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_bread_basket",
+      "episode": 13,
+      "frame": 107,
+      "cameras": {
+        "camera_top": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.3204193115234375,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_bread_basket",
+      "episode": 39,
+      "frame": 115,
+      "cameras": {
+        "camera_top": {
+          "table": 0.0,
+          "wall": 0.053497314453125,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.0763092041015625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.5408477783203125,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_bread_skillet",
+      "episode": 1,
+      "frame": 38,
+      "cameras": {
+        "camera_top": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.1003875732421875,
+          "wall": 0.3935546875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.2727813720703125,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_bread_skillet",
+      "episode": 27,
+      "frame": 18,
+      "cameras": {
+        "camera_top": {
+          "table": 0.493865966796875,
+          "wall": 0.06640625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.182769775390625,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.6190185546875,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_burger_fries",
+      "episode": 21,
+      "frame": 114,
+      "cameras": {
+        "camera_top": {
+          "table": 0.082794189453125,
+          "wall": 0.0616455078125,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.3004150390625,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_burger_fries",
+      "episode": 33,
+      "frame": 206,
+      "cameras": {
+        "camera_top": {
+          "table": 0.0,
+          "wall": 0.0664215087890625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.4293365478515625,
+          "wall": 0.4689788818359375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_can_basket",
+      "episode": 3,
+      "frame": 143,
+      "cameras": {
+        "camera_top": {
+          "table": 0.0862884521484375,
+          "wall": 0.0658721923828125,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.4818267822265625,
+          "wall": 0.077789306640625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.4188079833984375,
+          "wall": 0.4700164794921875,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_can_basket",
+      "episode": 27,
+      "frame": 157,
+      "cameras": {
+        "camera_top": {
+          "table": 0.2658233642578125,
+          "wall": 0.0401763916015625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.4031524658203125,
+          "wall": 0.3037567138671875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.577545166015625,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_cans_plasticbox",
+      "episode": 27,
+      "frame": 161,
+      "cameras": {
+        "camera_top": {
+          "table": 0.3133087158203125,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.0450439453125,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.0832977294921875,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_cans_plasticbox",
+      "episode": 49,
+      "frame": 228,
+      "cameras": {
+        "camera_top": {
+          "table": 0.2705078125,
+          "wall": 0.0590057373046875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.4295196533203125,
+          "wall": 0.45599365234375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_container_plate",
+      "episode": 14,
+      "frame": 54,
+      "cameras": {
+        "camera_top": {
+          "table": 0.5555419921875,
+          "wall": 0.066314697265625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.431854248046875,
+          "wall": 0.4653778076171875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_container_plate",
+      "episode": 30,
+      "frame": 69,
+      "cameras": {
+        "camera_top": {
+          "table": 0.605712890625,
+          "wall": 0.0664215087890625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.431884765625,
+          "wall": 0.458038330078125,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_dual_shoes",
+      "episode": 10,
+      "frame": 88,
+      "cameras": {
+        "camera_top": {
+          "table": 0.0606842041015625,
+          "wall": 0.1055908203125,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.30914306640625,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.2385101318359375,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_dual_shoes",
+      "episode": 48,
+      "frame": 239,
+      "cameras": {
+        "camera_top": {
+          "table": 0.2209625244140625,
+          "wall": 0.1502838134765625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.2246856689453125,
+          "wall": 0.6666259765625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_empty_cup",
+      "episode": 1,
+      "frame": 138,
+      "cameras": {
+        "camera_top": {
+          "table": 0.0,
+          "wall": 0.04656982421875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.431915283203125,
+          "wall": 0.45355224609375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.150726318359375,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_empty_cup",
+      "episode": 41,
+      "frame": 10,
+      "cameras": {
+        "camera_top": {
+          "table": 0.69775390625,
+          "wall": 0.0664215087890625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.4318695068359375,
+          "wall": 0.458099365234375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.369598388671875,
+          "wall": 0.4637298583984375,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_fan",
+      "episode": 14,
+      "frame": 42,
+      "cameras": {
+        "camera_top": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.431884765625,
+          "wall": 0.4587860107421875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.0795745849609375,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_fan",
+      "episode": 41,
+      "frame": 62,
+      "cameras": {
+        "camera_top": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.43194580078125,
+          "wall": 0.4580841064453125,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.2826080322265625,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_mouse_pad",
+      "episode": 6,
+      "frame": 74,
+      "cameras": {
+        "camera_top": {
+          "table": 0.3785552978515625,
+          "wall": 0.066314697265625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.4319610595703125,
+          "wall": 0.4580841064453125,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.0590057373046875,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_mouse_pad",
+      "episode": 32,
+      "frame": 119,
+      "cameras": {
+        "camera_top": {
+          "table": 0.4484710693359375,
+          "wall": 0.06640625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.4319610595703125,
+          "wall": 0.45635986328125,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.2508087158203125,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_object_basket",
+      "episode": 33,
+      "frame": 92,
+      "cameras": {
+        "camera_top": {
+          "table": 0.087677001953125,
+          "wall": 0.0481109619140625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0743408203125,
+          "wall": 0.2802734375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.4342498779296875,
+          "wall": 0.4614715576171875,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_object_basket",
+      "episode": 48,
+      "frame": 102,
+      "cameras": {
+        "camera_top": {
+          "table": 0.1411285400390625,
+          "wall": 0.0484771728515625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.408233642578125,
+          "wall": 0.467010498046875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.12896728515625,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_object_scale",
+      "episode": 16,
+      "frame": 47,
+      "cameras": {
+        "camera_top": {
+          "table": 0.41424560546875,
+          "wall": 0.0663299560546875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.431915283203125,
+          "wall": 0.4571380615234375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.11212158203125,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_object_scale",
+      "episode": 39,
+      "frame": 3,
+      "cameras": {
+        "camera_top": {
+          "table": 0.6964263916015625,
+          "wall": 0.0664215087890625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.4041595458984375,
+          "wall": 0.457794189453125,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.4365234375,
+          "wall": 0.4562530517578125,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_object_stand",
+      "episode": 4,
+      "frame": 101,
+      "cameras": {
+        "camera_top": {
+          "table": 0.1209564208984375,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.4320068359375,
+          "wall": 0.4604644775390625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.308197021484375,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_object_stand",
+      "episode": 5,
+      "frame": 103,
+      "cameras": {
+        "camera_top": {
+          "table": 0.4342803955078125,
+          "wall": 0.0471649169921875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.4177703857421875,
+          "wall": 0.462615966796875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.52447509765625,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_phone_stand",
+      "episode": 22,
+      "frame": 114,
+      "cameras": {
+        "camera_top": {
+          "table": 0.4946136474609375,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.324615478515625,
+          "wall": 0.4482269287109375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.1193695068359375,
+          "wall": 0.1836090087890625,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_phone_stand",
+      "episode": 35,
+      "frame": 62,
+      "cameras": {
+        "camera_top": {
+          "table": 0.4808349609375,
+          "wall": 0.06640625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.251373291015625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.4310150146484375,
+          "wall": 0.460845947265625,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_shoe",
+      "episode": 7,
+      "frame": 131,
+      "cameras": {
+        "camera_top": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.43194580078125,
+          "wall": 0.453582763671875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.05303955078125,
+          "wall": 0.2935791015625,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "place_shoe",
+      "episode": 45,
+      "frame": 116,
+      "cameras": {
+        "camera_top": {
+          "table": 0.739654541015625,
+          "wall": 0.0662841796875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.4319915771484375,
+          "wall": 0.4701080322265625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.2972259521484375,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "press_stapler",
+      "episode": 8,
+      "frame": 30,
+      "cameras": {
+        "camera_top": {
+          "table": 0.6705474853515625,
+          "wall": 0.061065673828125,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.4198760986328125,
+          "wall": 0.4552001953125,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.7075958251953125,
+          "wall": 0.0618896484375,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "press_stapler",
+      "episode": 21,
+      "frame": 34,
+      "cameras": {
+        "camera_top": {
+          "table": 0.534698486328125,
+          "wall": 0.045501708984375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.43194580078125,
+          "wall": 0.45263671875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.26641845703125,
+          "wall": 0.0488739013671875,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "put_bottles_dustbin",
+      "episode": 31,
+      "frame": 198,
+      "cameras": {
+        "camera_top": {
+          "table": 0.037933349609375,
+          "wall": 0.0591583251953125,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.16552734375,
+          "wall": 0.4846343994140625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "put_bottles_dustbin",
+      "episode": 33,
+      "frame": 496,
+      "cameras": {
+        "camera_top": {
+          "table": 0.562164306640625,
+          "wall": 0.0748748779296875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.035064697265625,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.436004638671875,
+          "wall": 0.4368743896484375,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "put_object_cabinet",
+      "episode": 4,
+      "frame": 91,
+      "cameras": {
+        "camera_top": {
+          "table": 0.0994110107421875,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.1135406494140625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.4150390625,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "put_object_cabinet",
+      "episode": 17,
+      "frame": 259,
+      "cameras": {
+        "camera_top": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "rotate_qrcode",
+      "episode": 17,
+      "frame": 109,
+      "cameras": {
+        "camera_top": {
+          "table": 0.0,
+          "wall": 0.05926513671875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.4319915771484375,
+          "wall": 0.4525146484375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.1844635009765625,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "rotate_qrcode",
+      "episode": 45,
+      "frame": 74,
+      "cameras": {
+        "camera_top": {
+          "table": 0.6214141845703125,
+          "wall": 0.06640625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.4318389892578125,
+          "wall": 0.461334228515625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.121337890625,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "scan_object",
+      "episode": 13,
+      "frame": 44,
+      "cameras": {
+        "camera_top": {
+          "table": 0.376556396484375,
+          "wall": 0.06640625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.3549652099609375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "scan_object",
+      "episode": 38,
+      "frame": 130,
+      "cameras": {
+        "camera_top": {
+          "table": 0.1995391845703125,
+          "wall": 0.0606842041015625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.2695770263671875,
+          "wall": 0.3711395263671875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "shake_bottle",
+      "episode": 12,
+      "frame": 114,
+      "cameras": {
+        "camera_top": {
+          "table": 0.4805908203125,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.3421478271484375,
+          "wall": 0.4580841064453125,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.4685516357421875,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "shake_bottle",
+      "episode": 35,
+      "frame": 190,
+      "cameras": {
+        "camera_top": {
+          "table": 0.5094451904296875,
+          "wall": 0.039581298828125,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.37725830078125,
+          "wall": 0.461669921875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.466522216796875,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "shake_bottle_horizontally",
+      "episode": 3,
+      "frame": 123,
+      "cameras": {
+        "camera_top": {
+          "table": 0.5098114013671875,
+          "wall": 0.0399627685546875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.4941864013671875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.3862762451171875,
+          "wall": 0.4577789306640625,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "shake_bottle_horizontally",
+      "episode": 13,
+      "frame": 261,
+      "cameras": {
+        "camera_top": {
+          "table": 0.47015380859375,
+          "wall": 0.0474700927734375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.35589599609375,
+          "wall": 0.46380615234375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.457183837890625,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "stack_blocks_three",
+      "episode": 6,
+      "frame": 93,
+      "cameras": {
+        "camera_top": {
+          "table": 0.3338165283203125,
+          "wall": 0.03948974609375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.4169921875,
+          "wall": 0.449493408203125,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.5849456787109375,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "stack_blocks_three",
+      "episode": 22,
+      "frame": 342,
+      "cameras": {
+        "camera_top": {
+          "table": 0.071533203125,
+          "wall": 0.0602264404296875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.894073486328125,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.1426544189453125,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "stack_blocks_two",
+      "episode": 14,
+      "frame": 176,
+      "cameras": {
+        "camera_top": {
+          "table": 0.4979705810546875,
+          "wall": 0.06640625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.4297332763671875,
+          "wall": 0.08270263671875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.8916473388671875,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "stack_blocks_two",
+      "episode": 40,
+      "frame": 56,
+      "cameras": {
+        "camera_top": {
+          "table": 0.4648284912109375,
+          "wall": 0.06640625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.388397216796875,
+          "wall": 0.45513916015625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.04638671875,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "stack_bowls_three",
+      "episode": 22,
+      "frame": 351,
+      "cameras": {
+        "camera_top": {
+          "table": 0.4154205322265625,
+          "wall": 0.065399169921875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0,
+          "wall": 0.21966552734375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.436737060546875,
+          "wall": 0.4653472900390625,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "stack_bowls_three",
+      "episode": 42,
+      "frame": 235,
+      "cameras": {
+        "camera_top": {
+          "table": 0.5335845947265625,
+          "wall": 0.066314697265625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.3164215087890625,
+          "wall": 0.4790496826171875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.0,
+          "wall": 0.1757659912109375,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "stack_bowls_two",
+      "episode": 33,
+      "frame": 93,
+      "cameras": {
+        "camera_top": {
+          "table": 0.41326904296875,
+          "wall": 0.0452728271484375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.3033294677734375,
+          "wall": 0.152679443359375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.415069580078125,
+          "wall": 0.460357666015625,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "stack_bowls_two",
+      "episode": 35,
+      "frame": 191,
+      "cameras": {
+        "camera_top": {
+          "table": 0.393829345703125,
+          "wall": 0.0506591796875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.094482421875,
+          "wall": 0.3637237548828125,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.4349822998046875,
+          "wall": 0.454925537109375,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "stamp_seal",
+      "episode": 6,
+      "frame": 89,
+      "cameras": {
+        "camera_top": {
+          "table": 0.0,
+          "wall": 0.050567626953125,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.0952606201171875,
+          "wall": 0.6174774169921875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.419342041015625,
+          "wall": 0.452178955078125,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "stamp_seal",
+      "episode": 29,
+      "frame": 90,
+      "cameras": {
+        "camera_top": {
+          "table": 0.48553466796875,
+          "wall": 0.0415802001953125,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.4042816162109375,
+          "wall": 0.449676513671875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.07318115234375,
+          "wall": 0.2898712158203125,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "turn_switch",
+      "episode": 4,
+      "frame": 73,
+      "cameras": {
+        "camera_top": {
+          "table": 0.4408416748046875,
+          "wall": 0.0664215087890625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.43194580078125,
+          "wall": 0.4646453857421875,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.434722900390625,
+          "wall": 0.0,
+          "ambiguous_surface_colors": false
+        }
+      }
+    },
+    {
+      "task": "turn_switch",
+      "episode": 37,
+      "frame": 3,
+      "cameras": {
+        "camera_top": {
+          "table": 0.745697021484375,
+          "wall": 0.0664215087890625,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_left": {
+          "table": 0.432708740234375,
+          "wall": 0.46673583984375,
+          "ambiguous_surface_colors": false
+        },
+        "camera_wrist_right": {
+          "table": 0.43658447265625,
+          "wall": 0.4609375,
+          "ambiguous_surface_colors": false
+        }
+      }
+    }
+  ],
+  "throughput": {
+    "none": {
+      "samples_per_second": 2847.9036068905407,
+      "seconds_per_100": [
+        0.037184782000167615,
+        0.03492584099990381,
+        0.03511354800002664
+      ]
+    },
+    "v1": {
+      "samples_per_second": 24.594469823325618,
+      "seconds_per_100": [
+        4.19911318000004,
+        3.693171338999946,
+        4.065954693000094
+      ]
+    },
+    "v2": {
+      "samples_per_second": 12.525586315781394,
+      "seconds_per_100": [
+        7.548304227000017,
+        7.983658207999952,
+        9.006179045999943
+      ]
+    }
+  },
+  "throughput_scope": "Decoded real clean current/future RGB image pipeline + student normalization, excludes decoder/tokenizer/state/action collation",
+  "ambiguous_surface_tasks": [],
+  "low_table_mask_tasks": [
+    "beat_block_hammer",
+    "blocks_ranking_size",
+    "click_alarmclock",
+    "click_bell",
+    "handover_mic",
+    "hanging_mug",
+    "lift_pot",
+    "move_stapler_pad",
+    "open_microwave",
+    "pick_diverse_bottles",
+    "pick_dual_bottles",
+    "place_bread_basket",
+    "place_bread_skillet",
+    "place_burger_fries",
+    "place_can_basket",
+    "place_dual_shoes",
+    "place_empty_cup",
+    "place_fan",
+    "place_object_basket",
+    "place_object_stand",
+    "place_shoe",
+    "put_bottles_dustbin",
+    "put_object_cabinet",
+    "rotate_qrcode",
+    "scan_object",
+    "stack_blocks_three",
+    "stamp_seal"
+  ]
+}

@@ -1,0 +1,27 @@
+test_all_2500 (__main__.Contracts.test_all_2500) ... ok
+test_enclosed_reflection_is_not_background (__main__.Contracts.test_enclosed_reflection_is_not_background) ... ok
+test_feature_transform_inference_and_labels (__main__.Contracts.test_feature_transform_inference_and_labels) ... Overwriting feature type 'VideoFrame' (VideoFrame -> VideoFrame)
+/root/deliverables/dataloader_aug_work/repos/lingbot-vla-v2/lingbotvla/data/vla_data/augment.py:220: DeprecationWarning: 'mode' parameter is deprecated and will be removed in Pillow 13 (2026-10-15)
+  im = Image.fromarray(hsv, 'HSV').convert('RGB').filter(ImageFilter.GaussianBlur(blur))
+ok
+test_global_rng_independent (__main__.Contracts.test_global_rng_independent) ... ok
+test_library_reproducible (__main__.Contracts.test_library_reproducible) ... ok
+test_none_original_prepare_images (__main__.Contracts.test_none_original_prepare_images) ... ok
+test_procedural_does_not_open_seen (__main__.Contracts.test_procedural_does_not_open_seen) ... ok
+test_profile_gate (__main__.Contracts.test_profile_gate) ... ok
+test_state_labels_unchanged (__main__.Contracts.test_state_labels_unchanged) ... ok
+test_teacher_temporal (__main__.Contracts.test_teacher_temporal) ... /root/deliverables/dataloader_aug_work/repos/lingbot-vla-v2/lingbotvla/data/vla_data/augment.py:220: DeprecationWarning: 'mode' parameter is deprecated and will be removed in Pillow 13 (2026-10-15)
+  im = Image.fromarray(hsv, 'HSV').convert('RGB').filter(ImageFilter.GaussianBlur(blur))
+ok
+test_unseen (__main__.Contracts.test_unseen) ... ok
+test_v2_temporal_and_distractors (__main__.Contracts.test_v2_temporal_and_distractors) ... ok
+test_workers (__main__.Contracts.test_workers) ... {"cutouts": 1, "directory": "/tmp/tmp3zmxhswt/one"}
+{"cutouts": 1, "directory": "/tmp/tmp3zmxhswt/two"}
+/root/lingbot_challenge/envs/lingbotvla/lib/python3.12/multiprocessing/popen_fork.py:66: DeprecationWarning: This process (pid=4637) is multi-threaded, use of fork() may lead to deadlocks in the child.
+  self.pid = os.fork()
+ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 5.839s
+
+OK

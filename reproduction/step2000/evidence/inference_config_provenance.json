@@ -1,0 +1,13 @@
+{
+  "source": "/root/lingbot_build/configs/train_8xA100.yaml",
+  "source_sha256": "f869dc60a68ccdbe26d4d80c2559c4dad95cf26532caa7e758281772b93b47a4",
+  "actual_training_run_config_available": false,
+  "basis": "Delivered training deployment template; all 1708 checkpoint tensor names/shapes match model. Training-only run overrides not claimed known.",
+  "normalization": "/root/lingbot_challenge/configs/clean_norm/robotwin.json",
+  "normalization_sha256": "bccf8d00c0bae955802c9d9522383b8f38761e568af6a49852b64184f095a4bc",
+  "normalization_basis": "Path in delivered training deployment template, not embedded in checkpoint.",
+  "changes": [
+    "joints/norm_type encoded for existing inference parser",
+    "use_compile=False"
+  ]
+}

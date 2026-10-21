@@ -1,0 +1,76 @@
+{
+  "configs": [
+    "configs/train_8xA100_aug_v4.yaml",
+    "configs/train_8xA100_aug_v5.yaml"
+  ],
+  "seed": 42,
+  "epoch": 0,
+  "texture_p_override": null,
+  "frames": "4 tasks x 3 cameras cropped from evidence/augmentation_preview/revision_20261019_v2b/*.jpg (column 1, JPEG)",
+  "sheets": [
+    {
+      "task": "click_bell",
+      "normal_index": 0,
+      "idle_left_index": 1,
+      "idle_right_index": 2,
+      "columns": [
+        "original",
+        "V2b (earlier sheet)",
+        "V4 normal",
+        "V5 normal",
+        "V4 idle=LEFT arm",
+        "V5 idle=LEFT arm",
+        "V4 idle=RIGHT arm",
+        "V5 idle=RIGHT arm"
+      ]
+    },
+    {
+      "task": "place_a2b_left",
+      "normal_index": 11,
+      "idle_left_index": 12,
+      "idle_right_index": 13,
+      "columns": [
+        "original",
+        "V2b (earlier sheet)",
+        "V4 normal",
+        "V5 normal",
+        "V4 idle=LEFT arm",
+        "V5 idle=LEFT arm",
+        "V4 idle=RIGHT arm",
+        "V5 idle=RIGHT arm"
+      ]
+    },
+    {
+      "task": "put_object_cabinet",
+      "normal_index": 20,
+      "idle_left_index": 21,
+      "idle_right_index": 22,
+      "columns": [
+        "original",
+        "V2b (earlier sheet)",
+        "V4 normal",
+        "V5 normal",
+        "V4 idle=LEFT arm",
+        "V5 idle=LEFT arm",
+        "V4 idle=RIGHT arm",
+        "V5 idle=RIGHT arm"
+      ]
+    },
+    {
+      "task": "stack_blocks_two",
+      "normal_index": 30,
+      "idle_left_index": 31,
+      "idle_right_index": 32,
+      "columns": [
+        "original",
+        "V2b (earlier sheet)",
+        "V4 normal",
+        "V5 normal",
+        "V4 idle=LEFT arm",
+        "V5 idle=LEFT arm",
+        "V4 idle=RIGHT arm",
+        "V5 idle=RIGHT arm"
+      ]
+    }
+  ]
+}

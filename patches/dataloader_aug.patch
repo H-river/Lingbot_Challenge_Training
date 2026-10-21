@@ -1,0 +1,1185 @@
+diff --git a/repos/lingbot-vla-v2/lingbotvla/data/data_loader.py b/repos/lingbot-vla-v2/lingbotvla/data/data_loader.py
+index 6c34523..74cf469 100644
+--- a/repos/lingbot-vla-v2/lingbotvla/data/data_loader.py
++++ b/repos/lingbot-vla-v2/lingbotvla/data/data_loader.py
+@@ -134,6 +134,8 @@ class DistributedDataloader(StatefulDataLoader):
+     sampler: "StatefulDistributedSampler"
+ 
+     def set_epoch(self, epoch: int) -> None:
++        if hasattr(self.dataset, "augmentation_set_epoch"):
++            self.dataset.augmentation_set_epoch(epoch)
+         if self.sampler is not None and hasattr(self.sampler, "set_epoch"):
+             self.sampler.set_epoch(epoch)
+         elif hasattr(self.dataset, "set_epoch"):
+@@ -204,6 +206,9 @@ def build_dataloader(
+     else:
+         collate_fn = MakeMicroBatchCollator(num_micro_batch=num_micro_batch, internal_data_collator=collate_fn)
+ 
++    if hasattr(dataset, "configure_augmentation_clock"):
++        dataset.configure_augmentation_clock(seed)
++
+     sampler = None
+     if not isinstance(dataset, IterableDataset):
+         sampler = StatefulDistributedSampler(
+diff --git a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/augment.py b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/augment.py
+new file mode 100644
+index 0000000..d67570f
+--- /dev/null
++++ b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/augment.py
+@@ -0,0 +1,980 @@
++"""Deterministic CPU-only augmentation; no simulator or evaluation data access."""
++from functools import lru_cache
++from pathlib import Path
++import colorsys
++import hashlib
++import json
++import math
++import os
++
++import cv2
++import numpy as np
++import torch
++from PIL import Image, ImageEnhance, ImageFilter
++
++
++BRIGHTNESS = (0.75, 1.1)
++CONTRAST = (0.6, 1.4)
++SATURATION = (0.5, 1.5)
++SHADOW_AWARE_CAMERAS = ('camera_top',)
++
++
++def safe_path(path):
++    p = Path(path).expanduser().resolve()
++    if 'unseen' in p.parts:
++        raise ValueError('unseen assets are forbidden')
++    return p
++
++
++def sample_rng(seed, epoch, index, stream='sample'):
++    digest = hashlib.sha256(f'{int(seed)}:{int(epoch)}:{int(index)}:{stream}'.encode()).digest()
++    return np.random.default_rng(int.from_bytes(digest[:8], 'little'))
++
++
++def enabled(config, policy_eval=False):
++    profile = config.get('profile', 'none')
++    if profile not in ('none', 'v1', 'v2'):
++        raise ValueError(f'Unknown aug.profile: {profile}')
++    return not policy_eval and profile != 'none'
++
++
++def uint8_hwc(tensor):
++    return tensor.detach().cpu().numpy().transpose(1, 2, 0).astype(np.uint8)
++
++
++def tensor_image(array, reference):
++    return torch.from_numpy(np.ascontiguousarray(array.transpose(2, 0, 1))).to(reference)
++
++
++@lru_cache(maxsize=4)
++def seen_index(root):
++    """Validate ALL clean episodes before any instruction replacement."""
++    import pandas as pd
++    root = safe_path(root)
++    result = {}
++    manifests = sorted((root / 'configs').glob('clean_episodes_*.manifest.json'))
++    for manifest in manifests:
++        data = json.loads(manifest.read_text())
++        task = data['tasks'][0]
++        episodes = data['episodes']
++        if len(episodes) != 50 or {e['episode'] for e in episodes} != set(range(50)):
++            raise ValueError(f'Incomplete manifest: {task}')
++        repo = root / 'data/clean_processed/lerobot' / task
++        prov = json.loads((repo / 'conversion_provenance.json').read_text())
++        candidates = [manifest, root / 'configs/clean_episodes.manifest.json']
++        matched = [p for p in candidates if p.is_file() and hashlib.sha256(p.read_bytes()).hexdigest() == prov['input_manifest_sha256']]
++        if not matched or prov.get('instruction_field') != 'seen' or prov.get('sample_only'):
++            raise ValueError(f'Unverified conversion: {task}')
++        source = [e for e in json.loads(matched[0].read_text())['episodes'] if e['task'] == task]
++        if source != episodes:
++            raise ValueError(f'Manifest disagreement: {task}')
++        files = sorted((repo / 'meta/episodes').rglob('*.parquet'))
++        metadata = pd.concat([pd.read_parquet(p, columns=['episode_index', 'tasks']) for p in files])
++        if len(metadata) != 50 or set(metadata.episode_index) != set(range(50)):
++            raise ValueError(f'Incomplete LeRobot episodes: {task}')
++        metadata = metadata.set_index('episode_index')
++        for e in episodes:
++            raw = safe_path(root / e['instructions_path']).read_bytes()
++            if hashlib.sha256(raw).hexdigest() != e['instructions_sha256']:
++                raise ValueError(f'Seen SHA mismatch: {task}/{e["episode"]}')
++            obj = json.loads(raw)
++            if set(obj) != {'seen'} or not obj['seen'] or not all(isinstance(x, str) for x in obj['seen']):
++                raise ValueError('Instruction JSON must contain only a nonempty seen list')
++            prompts = list(metadata.loc[e['episode'], 'tasks'])
++            if len(prompts) != 1 or prompts[0] not in obj['seen']:
++                raise ValueError(f'Episode mapping mismatch: {task}/{e["episode"]}')
++            result[(str(repo.resolve()), e['episode'])] = (obj['seen'], str(safe_path(root / e['path'])), task)
++    if len(manifests) != 50 or len(result) != 2500:
++        raise ValueError('All 50 tasks / 2500 trajectories must be validated')
++    return result
++
++
++def estimate_colors(image):
++    """Spatially seeded robust modes; conservative masks are reviewed offline."""
++    h, w = image.shape[:2]
++    colors = {}
++    for name, region in [('table', image[h//2:]), ('wall', image[:max(1,h//12)])]:
++        bins = (region.reshape(-1, 3).astype(np.int32) // 12)
++        keys, counts = np.unique(bins, axis=0, return_counts=True)
++        mode = keys[counts.argmax()]
++        pixels = region.reshape(-1, 3)[np.all(bins == mode, axis=1)]
++        colors[name] = np.median(pixels, axis=0)
++    return colors
++
++
++def region_mask(image, color, tolerance=18, background_only=True):
++    return _region_mask(image.shape, image.tobytes(), tuple(float(x) for x in color), tolerance, background_only).copy()
++
++
++@lru_cache(maxsize=128)
++def _region_mask(shape, pixels, color, tolerance, background_only):
++    image = np.frombuffer(pixels, dtype=np.uint8).reshape(shape)
++    color = np.asarray(color)
++    distance = np.linalg.norm(image.astype(np.float32) - color, axis=-1)
++    raw = (distance < tolerance).astype(np.uint8)
++    kernel = np.ones((3, 3), np.uint8)
++    mask = cv2.morphologyEx(raw, cv2.MORPH_OPEN, kernel)
++    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
++    # Closed object reflections must not become background. Separate boundaries
++    # before connected-component filtering, then demand broad frame contact.
++    if background_only:
++        mask *= raw
++        edges = cv2.Canny(cv2.cvtColor(image, cv2.COLOR_RGB2GRAY), 30, 80)
++        mask[cv2.dilate(edges, kernel) > 0] = 0
++    n, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
++    out = np.zeros_like(mask)
++    for i in range(1, n):
++        component = labels == i
++        contacts = [int(component[0].sum()), int(component[-1].sum()), int(component[:,0].sum()), int(component[:,-1].sum())]
++        if (stats[i, cv2.CC_STAT_AREA] >= image.shape[0]*image.shape[1]*0.04
++                and (not background_only or (sum(c > 0 for c in contacts) >= 2
++                and sum(contacts) >= .05 * (2*image.shape[0]+2*image.shape[1])))):
++            out[component] = 1
++    # Closing must never add protected object pixels; erode for a safety margin.
++    return cv2.erode(out * raw, kernel).astype(bool)
++
++
++def shadow_region_mask(image, color, lo=0.5, hi=1.08, chroma_tol=0.035, canny=(60, 150), min_seed=20):
++    """Conservative mask grown into shadows of the same surface.
++
++    A shadow is the surface colour at lower brightness: same chromaticity, luminance
++    ratio in [lo, hi]. Candidate shadow regions are split only at HARD edges (object
++    outlines), so soft shadow boundaries do not separate a shadow from the lit surface.
++    A candidate component is accepted only if it overlaps the conservative mask, i.e.
++    it is connected to confirmed lit surface. Grey/metal objects enclosed by hard
++    edges form separate components with no overlap and are never textured.
++    """
++    return _shadow_region_mask(image.shape, image.tobytes(), tuple(float(x) for x in color),
++                               lo, hi, chroma_tol, tuple(canny), min_seed).copy()
++
++
++@lru_cache(maxsize=128)
++def _shadow_region_mask(shape, pixels, color, lo, hi, chroma_tol, canny, min_seed):
++    image = np.frombuffer(pixels, dtype=np.uint8).reshape(shape)
++    strict = region_mask(image, color)
++    img = image.astype(np.float32)
++    color = np.asarray(color, np.float32)
++    chroma = img / np.maximum(img.sum(-1, keepdims=True), 1)
++    ratio = img.mean(-1) / max(float(color.mean()), 1)
++    raw = ((np.linalg.norm(chroma - color / max(float(color.sum()), 1), axis=-1) < chroma_tol)
++           & (ratio > lo) & (ratio < hi)).astype(np.uint8)
++    kernel = np.ones((3, 3), np.uint8)
++    cand = cv2.morphologyEx(cv2.morphologyEx(raw, cv2.MORPH_OPEN, kernel), cv2.MORPH_CLOSE, kernel) * raw
++    hard = cv2.Canny(cv2.cvtColor(image, cv2.COLOR_RGB2GRAY), *canny)
++    cand[cv2.dilate(hard, kernel) > 0] = 0
++    n, labels = cv2.connectedComponents(cand)
++    if n <= 1:
++        return strict
++    overlap = np.bincount(labels[strict], minlength=n)
++    keep = overlap >= min_seed
++    keep[0] = False
++    grown = cv2.erode((keep[labels] & raw.astype(bool)).astype(np.uint8), kernel).astype(bool)
++    return strict | grown
++
++
++def fill_seam(table, wall, image, colors, band=14, tolerance=60):
++    """Assign the untextured band between wall and table masks to the nearer surface.
++
++    The band comes from edge removal + erosion at the wall/table boundary. Only pixels
++    lying BETWEEN the masks (d_table + d_wall <= 2*band, i.e. seams up to ~2*band wide)
++    and colour-close to one of the surfaces are filled; arms and objects (far from both
++    colours) are untouched.
++    """
++    if not table.any() or not wall.any():
++        return table, wall
++    d_table = cv2.distanceTransform((~table).astype(np.uint8), cv2.DIST_L2, 3)
++    d_wall = cv2.distanceTransform((~wall).astype(np.uint8), cv2.DIST_L2, 3)
++    gap = (d_table + d_wall <= 2 * band) & ~table & ~wall
++    if not gap.any():
++        return table, wall
++    img = image.astype(np.float32)
++    close = ((np.linalg.norm(img - np.asarray(colors['table'], np.float32), axis=-1) < tolerance)
++             | (np.linalg.norm(img - np.asarray(colors['wall'], np.float32), axis=-1) < tolerance))
++    gap &= close
++    to_table = gap & (d_table <= d_wall)
++    return table | to_table, wall | (gap & ~to_table)
++
++
++@lru_cache(maxsize=256)
++def episode_colors(raw_path):
++    import h5py
++    names = {'camera_top': 'head_camera', 'camera_wrist_left': 'left_camera', 'camera_wrist_right': 'right_camera'}
++    colors = {}
++    with h5py.File(safe_path(raw_path), 'r') as h:
++        for camera, source in names.items():
++            frame = cv2.imdecode(np.frombuffer(h[f'observation/{source}/rgb'][0], np.uint8), cv2.IMREAD_COLOR)
++            if frame is None:
++                raise ValueError('Undecodable release frame')
++            colors[camera] = estimate_colors(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
++    return colors
++
++
++def geometry(image, params):
++    h, w = image.shape[:2]
++    side, x, y, dx, dy = params
++    ch, cw = max(1, round(h*side)), max(1, round(w*side))
++    top, left = round(y*(h-ch)), round(x*(w-cw))
++    cropped = cv2.resize(image[top:top+ch, left:left+cw], (w,h), interpolation=cv2.INTER_LINEAR)
++    return cv2.warpAffine(cropped, np.float32([[1,0,dx*w],[0,1,dy*h]]), (w,h), borderMode=cv2.BORDER_REFLECT_101)
++
++
++def perlin_noise(rng, size=256, cells=8):
++    angles=rng.uniform(0,2*np.pi,(cells+1,cells+1))
++    gradients=np.stack((np.cos(angles),np.sin(angles)),axis=-1)
++    y,x=np.mgrid[:size,:size].astype(np.float32)*cells/size
++    ix,iy=x.astype(int),y.astype(int);fx,fy=x-ix,y-iy
++    u=fx**3*(fx*(fx*6-15)+10);v=fy**3*(fy*(fy*6-15)+10)
++    def dot(dx,dy):
++        g=gradients[iy+dy,ix+dx]
++        return g[...,0]*(fx-dx)+g[...,1]*(fy-dy)
++    return ((1-v)*((1-u)*dot(0,0)+u*dot(1,0))+v*((1-u)*dot(0,1)+u*dot(1,1))).astype(np.float32)
++
++
++def procedural_texture(rng, size=256):
++    y, x = np.mgrid[:size,:size].astype(np.float32)/size
++    kind = int(rng.integers(8))
++    noise = cv2.resize(rng.random((16,16)).astype(np.float32), (size,size), interpolation=cv2.INTER_CUBIC)
++    patterns = [np.sin(x*70+noise*8), np.sin((x+y)*25+noise*10),
++                np.sin(x*200)*np.sin(y*200), ((x*8)%1>.08)*((y*8)%1>.08),
++                np.sin(x*60), (np.floor(x*8)+np.floor(y*8))%2, perlin_noise(rng,size),
++                cv2.resize(rng.random((4,4)).astype(np.float32),(size,size),interpolation=cv2.INTER_NEAREST)*2-1]
++    base = rng.uniform(100,220,3)
++    return np.clip(base+patterns[kind][...,None]*rng.uniform(15,55),0,255).astype(np.uint8)
++
++
++@lru_cache(maxsize=8)
++def texture_files(directory):
++    root = safe_path(directory)
++    if root.name != 'seen':
++        raise ValueError('robotwin_seen requires the seen directory itself')
++    paths = []
++    for p in sorted(root.iterdir()):
++        p = safe_path(p)  # reject symlink escape into unseen BEFORE opening
++        if p.is_file() and p.suffix.lower() in ('.png','.jpg','.jpeg'):
++            paths.append(str(p))
++    if not paths:
++        raise ValueError('No seen textures')
++    return tuple(paths)
++
++
++@lru_cache(maxsize=64)
++def read_texture(path):
++    with Image.open(safe_path(path)) as im:
++        return np.asarray(im.convert('RGB').resize((256,256))).copy()
++
++
++# ---------------------------------------------------------------------------
++# ORACLE control experiment ONLY (V3). Adds the EVALUATION texture folder to the
++# texture pool to measure how much of the clean->random gap is explained by
++# texture distribution. A model trained this way has seen test-set assets and
++# must NEVER be submitted. Everything else (instructions, distractors, any other
++# path) still goes through safe_path() and keeps rejecting 'unseen'.
++# ---------------------------------------------------------------------------
++ORACLE_SOURCE = 'robotwin_seen_plus_unseen_ORACLE'
++ORACLE_ENV = 'LINGBOT_UNSEEN_TEXTURE_ORACLE'
++ORACLE_TOKEN = 'NOT_FOR_SUBMISSION'
++
++
++def require_oracle_opt_in():
++    if os.environ.get(ORACLE_ENV) != ORACLE_TOKEN:
++        raise PermissionError(f'{ORACLE_SOURCE} reads evaluation textures; set {ORACLE_ENV}={ORACLE_TOKEN} '
++                              'only for the non-submitted control experiment')
++
++
++@lru_cache(maxsize=2)
++def oracle_unseen_files(directory):
++    require_oracle_opt_in()
++    root = Path(directory).expanduser().resolve()
++    if root.name != 'unseen' or root.parent.name != 'background_texture':
++        raise ValueError('oracle source requires .../background_texture/unseen itself')
++    paths = []
++    for p in sorted(root.iterdir()):
++        p = p.resolve()
++        if not p.is_relative_to(root):
++            raise ValueError('symlink escape from unseen texture directory')
++        if p.is_file() and p.suffix.lower() in ('.png','.jpg','.jpeg'):
++            paths.append(str(p))
++    if not paths:
++        raise ValueError('No unseen textures')
++    import logging
++    logging.getLogger(__name__).warning('ORACLE: %d evaluation textures added to the pool; checkpoint is NOT FOR SUBMISSION', len(paths))
++    return tuple(paths)
++
++
++@lru_cache(maxsize=64)
++def read_oracle_texture(path):
++    require_oracle_opt_in()
++    with Image.open(path) as im:
++        return np.asarray(im.convert('RGB').resize((256,256))).copy()
++
++
++def make_texture(config, rng):
++    source = config.get('source', 'procedural')
++    if source == 'procedural':
++        tile = procedural_texture(rng)
++    elif source == 'robotwin_seen':
++        paths = texture_files(config['seen_dir'])
++        tile = read_texture(paths[int(rng.integers(len(paths)))])
++    elif source == ORACLE_SOURCE:
++        # Uniform over the union, same single RNG draw as robotwin_seen, so V2 and V3
++        # share every other random decision for the same sample.
++        seen, unseen = texture_files(config['seen_dir']), oracle_unseen_files(config['unseen_dir'])
++        k = int(rng.integers(len(seen) + len(unseen)))
++        tile = read_texture(seen[k]) if k < len(seen) else read_oracle_texture(unseen[k - len(seen)])
++    else:
++        raise ValueError('Unsupported texture source')
++    tile = np.rot90(tile, int(rng.integers(4)))
++    size = int(rng.integers(64,257))
++    tile = cv2.resize(tile, (size,size))
++    return np.tile(tile, (math.ceil(256/size),math.ceil(256/size),1))[:256,:256]
++
++
++def color_image(image, params, noise_seed):
++    b,c,s,hue,noise,blur = params
++    im = Image.fromarray(image)
++    for cls, factor in [(ImageEnhance.Brightness,b),(ImageEnhance.Contrast,c),(ImageEnhance.Color,s)]:
++        im = cls(im).enhance(factor)
++    hsv = np.array(im.convert('HSV'))
++    hsv[...,0] = (hsv[...,0].astype(np.int32)+hue)%256
++    im = Image.fromarray(hsv, 'HSV').convert('RGB').filter(ImageFilter.GaussianBlur(blur))
++    arr = np.asarray(im).astype(np.float32)
++    arr += np.random.default_rng(noise_seed).normal(0,noise,arr.shape)
++    return np.clip(arr,0,255).astype(np.uint8)
++
++
++class SampleAugment:
++    def __init__(self, config, seed, epoch, index, raw_path, task):
++        self.config, self.task = config, task
++        for operation in ('color','geometric','texture','distractor'):
++            probability=config.get(operation,{}).get('p',.5 if operation=='color' else .3)
++            if not 0 <= probability <= 1:
++                raise ValueError(f'{operation}.p must be in [0,1]')
++        if config.get('profile') == 'v2' and config.get('texture',{}).get('source') == 'robotwin_seen':
++            texture_files(config['texture']['seen_dir'])
++        validate_distractor_source(config.get('distractor', {}))
++        if config.get('texture',{}).get('source') == ORACLE_SOURCE:
++            if config.get('profile') != 'v2':
++                raise ValueError('oracle texture source is only defined for profile v2')
++            texture_files(config['texture']['seen_dir']); oracle_unseen_files(config['texture']['unseen_dir'])
++        self._key = (seed, epoch, index)
++        self.idle_arm = None
++        self.rng = sample_rng(seed,epoch,index)
++        self.noise_seed = int(sample_rng(seed,epoch,index,'noise').integers(2**32))
++        self.state_rng = sample_rng(seed,epoch,index,'state')
++        self.raw_path = raw_path
++        self.geom = None
++        self.color = None
++        self.textures = {}
++        self.placements = {}
++        rng = self.rng
++        g, c = config.get('geometric',{}), config.get('color',{})
++        if rng.random() < g.get('p',.3):
++            self.geom = (math.sqrt(rng.uniform(g.get('min_area',.9),1)),rng.random(),rng.random(),*rng.uniform(-g.get('max_shift',.04),g.get('max_shift',.04),2))
++        if rng.random() < c.get('p',.5):
++            # RoboTwin clean scenes are near-white, so brightness above ~1.1 clips large regions.
++            (b0,b1),(c0,c1),(s0,s1) = (c.get('brightness',BRIGHTNESS),c.get('contrast',CONTRAST),c.get('saturation',SATURATION))
++            self.color = (rng.uniform(b0,b1),rng.uniform(c0,c1),rng.uniform(s0,s1),int(rng.integers(-4,5)),rng.uniform(0,2),rng.uniform(0,.5))
++        # Every operation gets its own Bernoulli decision, including inactive V1 operations.
++        tc, dc = config.get('texture',{}), config.get('distractor',{})
++        texture_on, self.distractor_on = rng.random() < tc.get('p',.3), rng.random() < dc.get('p',.3)
++        if config['profile'] == 'v2' and texture_on:
++            self.textures = {region:make_texture(tc,rng) for region in tc.get('regions',['table','wall'])}
++        self.distractor_on &= config['profile'] == 'v2'
++        if not config.get('teacher_uses_clean',True):
++            raise ValueError('This pipeline requires geometry-only teachers')
++
++    def surface_masks(self, camera, image, colors):
++        """Table/wall masks; shadow-aware on configured cameras, conservative elsewhere."""
++        tc = self.config.get('texture', {})
++        shadow = camera in tc.get('shadow_aware_cameras', SHADOW_AWARE_CAMERAS)
++        masks = {region: (shadow_region_mask if shadow else region_mask)(image, color)
++                 for region, color in colors.items()}
++        if (tc.get('fill_seam', True) and 'table' in masks and 'wall' in masks
++                and np.linalg.norm(np.asarray(colors['wall']) - np.asarray(colors['table'])) >= 24):
++            masks['table'], masks['wall'] = fill_seam(masks['table'], masks['wall'], image, colors)
++        return masks
++
++    def observe_actions(self, item):
++        """Called with the normalized per-feature action chunk before padding (V2b idle-arm focus)."""
++        dc = self.config.get('distractor', {})
++        if self.config.get('profile') == 'v2' and dc.get('placement', 'v1') == 'v2b':
++            self.idle_arm = detect_idle_arm(item, dc.get('idle_arm', {}))
++
++    def v2b_enabled(self):
++        return (self.config.get('texture', {}).get('mode', 'mask') == 'overlay'
++                or self.config.get('distractor', {}).get('placement', 'v1') == 'v2b')
++
++    def apply_pair(self, current, future=None):
++        if self.v2b_enabled():
++            return self._apply_pair_v2b(current, future)
++        students, teachers, future_students, future_teachers = {},{},{},{}
++        colors = episode_colors(self.raw_path) if self.textures or self.distractor_on else {}
++        for camera, tensor in current.items():
++            images = [uint8_hwc(tensor)]
++            if future and camera in future:
++                images.append(uint8_hwc(future[camera]))
++            masks = [self.surface_masks(camera, im, colors.get(camera, {})) for im in images]
++            dc = self.config.get("distractor",{})
++            placements = plan_distractors(dc,self.task,masks,self.rng) if self.distractor_on and camera in dc.get("cameras",["camera_top"]) else []
++            for i,im in enumerate(images):
++                teacher = geometry(im,self.geom) if self.geom else im.copy()
++                student = im.copy()
++                for region, texture in self.textures.items():
++                    mask = masks[i][region]
++                    # Do not invent wall/table separation when their colors coincide.
++                    if region == 'wall' and np.linalg.norm(colors[camera]['wall']-colors[camera]['table']) < 24:
++                        continue
++                    alpha = cv2.GaussianBlur(mask.astype(np.float32),(0,0),1)*mask
++                    tex = cv2.resize(texture,(im.shape[1],im.shape[0])).astype(np.float32)
++                    illumination = im.mean(-1,keepdims=True)/max(1,float(colors[camera][region].mean()))
++                    student = np.clip(student*(1-alpha[...,None])+tex*illumination*alpha[...,None],0,255).astype(np.uint8)
++                student = paste_distractors(student,placements)
++                if self.geom:
++                    student = geometry(student,self.geom)
++                if self.color:
++                    student = color_image(student,self.color,self.noise_seed)
++                a,b = (students,teachers) if i==0 else (future_students,future_teachers)
++                a[camera],b[camera] = tensor_image(student,tensor),tensor_image(teacher,tensor)
++        return students,teachers,future_students,future_teachers
++
++    def _apply_pair_v2b(self, current, future=None):
++        """V2b path. Texture: 'mask' (as before) or 'overlay' (segmentation-free).
++        Distractors: 'v1' (head only) or 'v2b' (all cameras, near objects, idle-arm focus,
++        contact shadow). Order for overlay: distractors -> texture overlay (so pasted objects
++        are textured like real ones) -> geometry -> colour. Teacher: geometry only."""
++        tc, dc = self.config.get('texture', {}), self.config.get('distractor', {})
++        overlay = tc.get('mode', 'mask') == 'overlay'
++        v2b_place = dc.get('placement', 'v1') == 'v2b'
++        focus = None
++        if v2b_place and self.config.get('profile') == 'v2' and self.idle_arm is not None:
++            if sample_rng(*self._key, 'idle').random() < dc.get('idle_focus_p', 0.0):
++                focus = self.idle_arm
++        distract = self.distractor_on or focus is not None
++        need_colors = distract or (self.textures and not overlay)
++        colors = episode_colors(self.raw_path) if need_colors else {}
++        if focus is not None:
++            cameras = {HEAD_CAMERA, WRIST_CAMERAS[focus]}
++        else:
++            cameras = set(dc.get('cameras', [HEAD_CAMERA]))
++        students, teachers, future_students, future_teachers = {}, {}, {}, {}
++        for camera, tensor in current.items():
++            images = [uint8_hwc(tensor)]
++            if future and camera in future:
++                images.append(uint8_hwc(future[camera]))
++            cam_colors = colors.get(camera, {})
++            surf = [self.surface_masks(camera, im, cam_colors) for im in images] if (self.textures and not overlay) else None
++            placements = []
++            if distract and camera in cameras and 'table' in cam_colors:
++                if v2b_place:
++                    table = [region_mask(im, cam_colors['table']) for im in images]
++                    placements = plan_distractors_v2b(dc, self.task, camera, table, images[0],
++                                                      sample_rng(*self._key, f'distractor:{camera}'), focus)
++                else:
++                    masks = surf or [{'table': region_mask(im, cam_colors['table'])} for im in images]
++                    placements = plan_distractors(dc, self.task, masks, self.rng)
++            ov = overlay_params(sample_rng(*self._key, f'overlay:{camera}'), camera, tc.get('overlay', {})) \
++                if (self.textures and overlay) else None
++            for i, im in enumerate(images):
++                teacher = geometry(im, self.geom) if self.geom else im.copy()
++                student = im.copy()
++                if surf is not None:
++                    for region, texture in self.textures.items():
++                        if region not in surf[i]:
++                            continue
++                        if region == 'wall' and np.linalg.norm(cam_colors['wall'] - cam_colors['table']) < 24:
++                            continue
++                        mask = surf[i][region]
++                        alpha = cv2.GaussianBlur(mask.astype(np.float32), (0, 0), 1) * mask
++                        tex = cv2.resize(texture, (im.shape[1], im.shape[0])).astype(np.float32)
++                        illumination = im.mean(-1, keepdims=True) / max(1, float(cam_colors[region].mean()))
++                        student = np.clip(student * (1 - alpha[..., None]) + tex * illumination * alpha[..., None], 0, 255).astype(np.uint8)
++                if v2b_place:
++                    student = paste_distractors_v2b(student, placements)
++                else:
++                    student = paste_distractors(student, [p[:3] for p in placements])
++                if ov is not None:
++                    student = overlay_texture(student, self.textures, ov)
++                if self.geom:
++                    student = geometry(student, self.geom)
++                if self.color:
++                    student = color_image(student, self.color, self.noise_seed)
++                a, b = (students, teachers) if i == 0 else (future_students, future_teachers)
++                a[camera], b[camera] = tensor_image(student, tensor), tensor_image(teacher, tensor)
++        return students, teachers, future_students, future_teachers
++
++    def perturb_state(self,state):
++        config = self.config.get('state_noise',{})
++        if not config.get('enabled',False):
++            return state
++        noise = self.state_rng.normal(0,config.get('std',0),tuple(state.shape))
++        return state+torch.as_tensor(noise,dtype=state.dtype,device=state.device)
++
++
++@lru_cache(maxsize=4)
++def distractor_library(directory):
++    root = safe_path(directory)
++    manifest = json.loads((root/'manifest.json').read_text())
++    if manifest.get('source') != 'release_clean_first_head_frames':
++        raise ValueError('Unapproved distractor library source')
++    for entry in manifest['items']:
++        path = safe_path(root/entry['file'])
++        if not path.is_relative_to(root) or hashlib.sha256(path.read_bytes()).hexdigest() != entry['sha256']:
++            raise ValueError('Distractor path/hash mismatch')
++    return root,manifest['items']
++
++
++@lru_cache(maxsize=128)
++def read_cutout(path):
++    with Image.open(safe_path(path)) as im:
++        return np.array(im.convert('RGBA'))
++
++
++def plan_distractors(config, task, masks, rng):
++    if config.get('source', 'library') != 'library':
++        raise ValueError('distractor.source procedural requires distractor.placement: v2b')
++    root, library = distractor_library(config['library_dir'])
++    candidates = [e for e in library if e['task'] != task]
++    if not candidates:
++        return []
++    allowed = np.logical_and.reduce([m['table'] for m in masks])
++    allowed = cv2.erode(allowed.astype(np.uint8),np.ones((7,7),np.uint8)).astype(bool)
++    h,w = allowed.shape
++    placements = []
++    for _ in range(int(rng.integers(1,config.get('max_count',3)+1))):
++        entry = candidates[int(rng.integers(len(candidates)))]
++        patch = read_cutout(str(root/entry['file']))
++        scale = rng.uniform(.5,1.2)*w/320
++        pw,ph = max(2,round(patch.shape[1]*scale)),max(2,round(patch.shape[0]*scale))
++        if pw >= w or ph >= h:
++            continue
++        patch = cv2.resize(patch,(pw,ph))
++        if rng.random()<.5:
++            patch = patch[:,::-1].copy()
++        support = patch[...,3]>0
++        for _ in range(config.get('max_retries',20)):
++            x,y = int(rng.integers(w-pw)),int(rng.integers(h-ph))
++            roi = allowed[y:y+ph,x:x+pw]
++            if support.any() and np.all(roi[support]):
++                placements.append((x,y,patch))
++                roi[support] = False
++                break
++    return placements
++
++
++def paste_distractors(image, placements):
++    image = image.copy()
++    for x,y,patch in placements:
++        h,w = patch.shape[:2]; a = patch[...,3:4].astype(np.float32)/255
++        roi=image[y:y+h,x:x+w]
++        image[y:y+h,x:x+w]=np.clip(roi*(1-a)+patch[...,:3]*a,0,255).astype(np.uint8)
++    return image
++
++
++# ---------------------------------------------------------------------------
++# V2b: segmentation-free texture overlay + shortcut-breaking distractors.
++# Motivation (observed in evaluation): the clean-trained policy learned
++# "non-white thing in front of the gripper => move/grasp". These samples show
++# textures and extra objects in front of the robot while the demonstrated action
++# (the label) ignores them, so presence of objects/texture stops predicting motion.
++# ---------------------------------------------------------------------------
++HEAD_CAMERA = 'camera_top'
++WRIST_CAMERAS = {'left': 'camera_wrist_left', 'right': 'camera_wrist_right'}
++
++
++def overlay_params(rng, camera, oc):
++    """Per-camera random wall/table split line and blend strength (no segmentation)."""
++    alpha = float(rng.uniform(*oc.get('alpha', (0.2, 0.5))))
++    tilt = float(np.deg2rad(rng.uniform(-oc.get('tilt_deg', 5), oc.get('tilt_deg', 5))))
++    if camera == HEAD_CAMERA:
++        y0 = float(rng.uniform(*oc.get('head_line', (0.05, 0.35))))
++    elif rng.random() < oc.get('wrist_wall_p', 0.3):
++        y0 = float(rng.uniform(*oc.get('wrist_line', (0.0, 0.5))))
++    else:
++        y0 = None                                   # wrist view usually sees only table
++    return y0, tilt, alpha, float(oc.get('feather', 3))
++
++
++def overlay_texture(image, textures, params):
++    """Blend a wall texture above a random line and a table texture below it over the
++    WHOLE image. Texture is modulated by the image's own luminance so shading, edges
++    and objects stay visible: out = (1-a)*img + a*tex*lum."""
++    y0, tilt, alpha, feather = params
++    h, w = image.shape[:2]
++    table = textures.get('table', next(iter(textures.values())))
++    tex = cv2.resize(table, (w, h)).astype(np.float32)
++    if y0 is not None and 'wall' in textures:
++        wall = cv2.resize(textures['wall'], (w, h)).astype(np.float32)
++        yy, xx = np.mgrid[:h, :w].astype(np.float32)
++        boundary = y0 * h + np.tan(tilt) * (xx - w / 2)
++        above = 1.0 / (1.0 + np.exp(np.clip((yy - boundary) / max(feather, 1e-3), -50, 50)))
++        tex = above[..., None] * wall + (1 - above[..., None]) * tex
++    img = image.astype(np.float32)
++    lum = img.mean(-1, keepdims=True) / max(float(img.mean()), 1.0)
++    return np.clip((1 - alpha) * img + alpha * tex * lum, 0, 255).astype(np.uint8)
++
++
++def object_anchors(image, table_mask):
++    """Boundary pixels of coloured, non-table blobs (likely task objects; arms are mostly
++    achromatic) with the outward direction from their blob centroid. Boundary, not interior,
++    so 'near' placements land beside the object rather than on it."""
++    chroma = image.max(-1).astype(np.int16) - image.min(-1).astype(np.int16)
++    blob = ((chroma > 40) & (image.mean(-1) > 50) & ~table_mask).astype(np.uint8)
++    edge = blob.astype(bool) & ~cv2.erode(blob, np.ones((3, 3), np.uint8)).astype(bool)
++    _, labels, _, centroids = cv2.connectedComponentsWithStats(blob)
++    points = np.argwhere(edge)
++    if len(points) == 0:
++        return points, np.zeros(0)
++    cx, cy = centroids[labels[points[:, 0], points[:, 1]]].T
++    outward = np.arctan2(points[:, 0] - cy, points[:, 1] - cx)
++    return points, outward
++
++
++def plan_distractors_v2b(config, task, camera, masks, image, rng, focus=None):
++    """Distractors on any configured camera. Optional placement near existing objects
++    (hard negatives) and, under idle-arm focus, inside the idle arm's half of the head view.
++    distractor.source 'library' (default) pastes release cutouts; 'procedural' (V4) renders
++    geometric objects instead and never opens the library directory."""
++    procedural = config.get('source', 'library') == 'procedural'
++    if procedural:
++        if not masks:
++            return []
++    else:
++        root, library = distractor_library(config['library_dir'])
++        candidates = [e for e in library if e['task'] != task]
++        if not candidates or not masks:
++            return []
++    allowed = np.logical_and.reduce([m for m in masks])
++    allowed = cv2.erode(allowed.astype(np.uint8), np.ones((7, 7), np.uint8)).astype(bool)
++    h, w = allowed.shape
++    if focus is not None and camera == HEAD_CAMERA:
++        side = np.zeros_like(allowed)
++        side[:, :w // 2] = focus == 'left'
++        side[:, w // 2:] = focus == 'right'
++        allowed &= side
++    anchors, outward = object_anchors(image, masks[0])
++    lo, hi = (1.0, 1.0) if camera == HEAD_CAMERA else tuple(config.get('wrist_scale', (1.5, 3.0)))
++    placements = []
++    for _ in range(int(rng.integers(1, config.get('max_count', 4) + 1))):
++        if procedural:
++            # Rendered directly at its final size (height in px of a 320-wide frame, times
++            # the wrist scale) so close-up wrist views are not upsampled; base 1 = no resize.
++            pc = config.get('procedural', {})
++            s0, s1 = pc.get('size', PROCEDURAL_SIZE)
++            source = procedural_distractor(rng, pc, rng.uniform(s0, s1) * w / 320 * rng.uniform(lo, hi))
++            base = 1.0
++        else:
++            entry = candidates[int(rng.integers(len(candidates)))]
++            source = read_cutout(str(root / entry['file']))
++            base = rng.uniform(.5, 1.2) * w / 320 * rng.uniform(lo, hi)
++        flip = rng.random() < .5
++        near = len(anchors) > 0 and rng.random() < config.get('near_object_p', 0.5)
++        if procedural:
++            # always drawn so V4 (flat, shadow off) and V5 (shaded) consume identical RNG
++            drawn = float(rng.uniform(.25, .45))
++            shadow = drawn if config.get('shadow', True) else 0.0
++        else:
++            shadow = float(rng.uniform(.25, .45)) if config.get('shadow', True) else 0.0
++        retries = config.get('max_retries', 20)
++        placed = False
++        # Free table area is small in close-up wrist views: retry at 70% and 50% size.
++        for shrink in (1.0, 0.7, 0.5):
++            pw, ph = max(2, round(source.shape[1] * base * shrink)), max(2, round(source.shape[0] * base * shrink))
++            if pw >= w or ph >= h:
++                continue
++            patch = cv2.resize(source, (pw, ph))
++            if flip:
++                patch = patch[:, ::-1].copy()
++            support = patch[..., 3] > 0
++            for _ in range(max(1, retries // 3)):
++                if near:
++                    k = int(rng.integers(len(anchors)))
++                    ay, ax = anchors[k]
++                    # outward from the object (+-90 deg); +4 px clears the 3 px erosion margin
++                    angle = outward[k] + rng.uniform(-np.pi / 2, np.pi / 2)
++                    dist = rng.uniform(.6, 1.5) * max(pw, ph) + 4
++                    x, y = int(ax + dist * np.cos(angle) - pw / 2), int(ay + dist * np.sin(angle) - ph / 2)
++                    if x < 0 or y < 0 or x + pw > w or y + ph > h:
++                        continue
++                else:
++                    x, y = int(rng.integers(w - pw)), int(rng.integers(h - ph))
++                roi = allowed[y:y + ph, x:x + pw]
++                if support.any() and np.all(roi[support]):
++                    placements.append((x, y, patch, shadow))
++                    roi[support] = False
++                    placed = True
++                    break
++            if placed:
++                break
++    return placements
++
++
++def paste_distractors_v2b(image, placements):
++    """Paste cutouts with a soft contact shadow so 'floating sticker' is not a cue."""
++    out = image.astype(np.float32)
++    H, W = out.shape[:2]
++    for x, y, patch, shadow in placements:
++        h, w = patch.shape[:2]
++        if shadow > 0:
++            m = np.zeros((H, W), np.float32)
++            cv2.ellipse(m, (int(x + w / 2), int(y + h * 0.92)), (max(1, int(w * 0.5)), max(1, int(h * 0.18))), 0, 0, 360, 1.0, -1)
++            m = cv2.GaussianBlur(m, (0, 0), max(1.0, h * 0.08))
++            out *= (1 - shadow * m)[..., None]
++        a = patch[..., 3:4].astype(np.float32) / 255
++        roi = out[y:y + h, x:x + w]
++        out[y:y + h, x:x + w] = roi * (1 - a) + patch[..., :3] * a
++    return np.clip(out, 0, 255).astype(np.uint8)
++
++
++def detect_idle_arm(item, config):
++    """'left'/'right' if exactly one arm (joints + gripper) stays still over the valid
++    part of the action chunk, else None. Uses normalized release actions only."""
++    arm = item.get(config.get('arm_key', 'action.arm.position'))
++    grip = item.get(config.get('gripper_key', 'action.effector.position'))
++    if arm is None or grip is None:
++        return None
++    arm, grip = torch.as_tensor(arm).float(), torch.as_tensor(grip).float()
++    pad = item.get('action_is_pad')
++    if pad is not None:
++        valid = ~torch.as_tensor(pad).bool()
++        arm, grip = arm[valid], grip[valid]
++    if arm.ndim != 2 or arm.shape[0] < 2 or grip.ndim != 2 or grip.shape[-1] < 2:
++        return None
++    thr, half = float(config.get('threshold', 0.05)), arm.shape[-1] // 2
++
++    def still(joints, gripper):
++        return bool((joints - joints[0]).abs().max() < thr and (gripper - gripper[0]).abs().max() < thr)
++
++    left, right = still(arm[:, :half], grip[:, 0]), still(arm[:, half:], grip[:, 1])
++    return 'left' if left and not right else 'right' if right and not left else None
++
++
++# ---------------------------------------------------------------------------
++# V4 / V5: procedural geometric distractors (distractor.source: procedural).
++# V4 = procedural.style flat (2-D silhouettes, one colour, contact shadow off in its config);
++# V5 = procedural.style shaded (the description below). Same RNG draws, so for a given sample
++# V4 and V5 place the same shape, colour, size and position; only the appearance differs.
++# Purpose: break the "non-white thing in front of the gripper => move/grasp" shortcut.
++# Objects are drawn from scratch (no release cutouts, no simulator, no external or
++# evaluation assets): 5 primitive shapes with Lambert shading, Phong highlight and
++# soft anti-aliased edges; colour CLASS is uniform (incl. white, grey, metal) so
++# colourfulness no longer predicts "task object".
++# ---------------------------------------------------------------------------
++
++PROCEDURAL_SHAPES = ('box', 'cylinder', 'bottle', 'sphere', 'bowl')
++# Hand-set HSV ranges (hue in degrees, s, v in [0, 1]); not fitted to any dataset.
++PROCEDURAL_COLORS = {
++    'red': ((-10, 8), (.65, .95), (.55, .90)),
++    'orange': ((18, 35), (.70, .95), (.75, .95)),
++    'yellow': ((45, 60), (.60, .90), (.80, .95)),
++    'green': ((90, 150), (.50, .85), (.40, .80)),
++    'cyan': ((170, 195), (.50, .85), (.55, .85)),
++    'blue': ((200, 240), (.55, .90), (.45, .85)),
++    'purple': ((260, 300), (.40, .75), (.40, .75)),
++    'pink': ((310, 345), (.30, .60), (.80, .95)),
++    'brown': ((18, 35), (.45, .75), (.25, .50)),
++    'black': ((0, 360), (.00, .20), (.06, .18)),
++    'grey': ((0, 360), (.00, .06), (.40, .70)),
++    'white': ((0, 360), (.00, .05), (.88, .98)),
++    'metal': ((0, 360), (.00, .08), (.60, .85)),   # silver; 25% brass, see procedural_color
++}
++SUPERSAMPLE = 3
++PROCEDURAL_SIZE = (16, 44)        # object height in px for a 320-px-wide frame, before wrist scale
++PROCEDURAL_STYLES = ('shaded', 'flat')   # shaded = V5 (3-D look); flat = V4 (2-D silhouette, one colour)
++DISTRACTOR_SOURCES = ('library', 'procedural')
++
++
++def validate_distractor_source(dc):
++    """Config check only (consumes no RNG, so default paths stay bitwise identical)."""
++    source = dc.get('source', 'library')
++    if source not in DISTRACTOR_SOURCES:
++        raise ValueError(f'Unknown distractor.source: {source}')
++    if source == 'procedural':
++        if dc.get('placement', 'v1') != 'v2b':
++            raise ValueError('distractor.source procedural requires distractor.placement: v2b')
++        pc = dc.get('procedural', {})
++        for name in pc.get('shapes', PROCEDURAL_SHAPES):
++            if name not in PROCEDURAL_SHAPES:
++                raise ValueError(f'Unknown procedural shape: {name}')
++        for name in pc.get('colors', PROCEDURAL_COLORS):
++            if name not in PROCEDURAL_COLORS:
++                raise ValueError(f'Unknown procedural colour class: {name}')
++        if pc.get('style', 'shaded') not in PROCEDURAL_STYLES:
++            raise ValueError(f"Unknown distractor.procedural.style: {pc.get('style')}")
++        s0, s1 = pc.get('size', PROCEDURAL_SIZE)
++        if not 4 <= s0 <= s1:
++            raise ValueError('distractor.procedural.size must satisfy 4 <= min <= max')
++
++
++def procedural_color(rng, name):
++    (h0, h1), (s0, s1), (v0, v1) = PROCEDURAL_COLORS[name]
++    hue, sat, val = rng.uniform(h0, h1) % 360, rng.uniform(s0, s1), rng.uniform(v0, v1)
++    if name == 'metal' and rng.random() < .25:                  # brass
++        hue, sat = rng.uniform(38, 50), rng.uniform(.35, .55)
++    return np.array(colorsys.hsv_to_rgb(hue / 360, sat, val), np.float32)
++
++
++def _material(rng, name):
++    """(ambient, diffuse, specular, shininess, metallic)"""
++    if name == 'metal':
++        return .50, .45, float(rng.uniform(.7, 1.0)), float(rng.uniform(18, 40)), True
++    if rng.random() < .5:                                         # glossy plastic / ceramic
++        return .38, .62, float(rng.uniform(.3, .6)), float(rng.uniform(25, 60)), False
++    return .40, .62, float(rng.uniform(.05, .15)), 8.0, False    # matte
++
++
++def _shade(normal, base, light, material):
++    """Lambert + Phong (+ environment bands for metal) for an (N, 3) array of normals."""
++    amb, kd, ks, shin, metallic = material
++    n = normal / np.maximum(np.linalg.norm(normal, axis=-1, keepdims=True), 1e-6)
++    lam = np.clip(n @ light, 0, 1)
++    half = light + np.array([0, 0, 1], np.float32)
++    half /= np.linalg.norm(half)
++    spec = np.clip(n @ half, 0, 1) ** shin
++    col = base[None] * (amb + kd * lam)[:, None]
++    if metallic:   # environment bands: bright ceiling above, darker floor below the horizon
++        col = col * (.95 + .25 * np.tanh(-6 * n[:, 1] - 1.5) + .08 * np.sin(9 * n[:, 0]))[:, None]
++        spec_rgb = .5 * base + .5
++    else:
++        spec_rgb = np.ones(3, np.float32)
++    return np.clip(col + ks * spec[:, None] * spec_rgb, 0, 1)
++
++
++def _revolve_normals(xx, yy, cx, radius, dr):
++    """Surface of revolution about a vertical axis; dr = d radius / d y (y down)."""
++    u = np.clip((xx - cx) / np.maximum(radius, 1e-6), -1, 1)
++    return np.stack([u, -dr, np.sqrt(1 - u ** 2)], -1).astype(np.float32)
++
++
++def _supersample(height):
++    """Anti-aliasing factor: 3x for small head-view objects, 2x for large wrist-view ones."""
++    return SUPERSAMPLE if height < 48 else 2
++
++
++def _render(rng, shape, height, color_name, light, style='shaded'):
++    """style 'shaded': Lambert/Phong/env shading, bottle cap colour, material variation.
++    style 'flat': identical silhouette (alpha), every pixel the single object colour; no shading,
++    highlight or variation. Both styles make the same RNG draws in the same order."""
++    if style not in PROCEDURAL_STYLES:
++        raise ValueError(f'Unknown procedural style: {style}')
++    flat = style == 'flat'
++    base = procedural_color(rng, color_name)
++    mat = _material(rng, color_name)
++    elev = float(rng.uniform(.25, .5))                             # b/a of horizontal ellipses
++    if shape == 'sphere':
++        H = W = height
++    elif shape == 'box':
++        H = height; W = round(height * rng.uniform(.8, 1.8))
++    elif shape == 'bowl':
++        H = height; W = round(height * rng.uniform(1.6, 2.3))
++    elif shape == 'cylinder':
++        H = height; W = round(height * rng.uniform(.45, 1.1))
++    else:  # bottle
++        H = height; W = round(height * rng.uniform(.3, .5))
++    H, W = max(H, 4), max(W, 4)
++    s = _supersample(H)
++    h, w = H * s, W * s
++    yy, xx = np.mgrid[:h, :w].astype(np.float32) + .5
++    alpha = np.zeros((h, w), np.float32)
++    rgb = np.zeros((h, w, 3), np.float32)
++
++    def put(mask, normal, colour, gain=1.0):
++        """Shade only the pixels of `mask`; later parts overwrite earlier ones (painter order)."""
++        if not mask.any():
++            return
++        normal = np.asarray(normal, np.float32)
++        nm = normal[mask] if normal.ndim == 3 else np.broadcast_to(normal, (int(mask.sum()), 3))
++        g = gain[mask][:, None] if isinstance(gain, np.ndarray) else gain
++        rgb[mask] = base if flat else _shade(nm, colour, light, mat) * g
++        alpha[mask] = 1
++
++    if shape == 'sphere':
++        r = w / 2
++        u, v = (xx - r) / r, (yy - r) / r
++        put(u ** 2 + v ** 2 <= 1, np.stack([u, v, np.sqrt(np.clip(1 - u ** 2 - v ** 2, 0, 1))], -1), base)
++    elif shape in ('cylinder', 'bottle'):
++        a = w / 2
++        b = a * elev
++        top, bottom = b, h - b
++        if shape == 'cylinder':
++            radius = np.full_like(yy, a); dr = np.zeros_like(yy)
++            cap_r = a
++        else:
++            neck = a * rng.uniform(.28, .42)
++            t = (yy - top) / (bottom - top)                         # 0 at top, 1 at bottom
++            sh0, sh1 = rng.uniform(.18, .3), rng.uniform(.38, .5)  # neck end / shoulder end
++            k = np.clip((t - sh0) / (sh1 - sh0), 0, 1)
++            radius = neck + (a - neck) * k * k * (3 - 2 * k)       # smoothstep shoulder
++            dr = np.where((t > sh0) & (t < sh1), (a - neck) * 6 * k * (1 - k) / ((sh1 - sh0) * (bottom - top)), 0)
++            cap_r = neck
++        inside = (np.abs(xx - a) <= radius) & (yy >= top) & \
++                 (yy <= bottom + b * np.sqrt(np.clip(1 - ((xx - a) / a) ** 2, 0, 1)))
++        put(inside, _revolve_normals(xx, yy, a, radius, dr * elev * 2), base)
++        cap = ((xx - a) / cap_r) ** 2 + ((yy - top) / (cap_r * elev)) ** 2 <= 1
++        cap_n = (0, -math.cos(math.asin(elev)), elev)
++        if shape == 'bottle':
++            cap_base = procedural_color(rng, str(rng.choice(['white', 'black', 'red', 'blue', 'grey'])))
++            lid = (np.abs(xx - a) <= cap_r * 1.08) & (yy >= top) & (yy <= top + (bottom - top) * rng.uniform(.06, .1))
++            put(lid, _revolve_normals(xx, yy, a, np.full_like(yy, cap_r * 1.08), 0 * yy), cap_base)
++            put(cap, cap_n, cap_base)
++        else:
++            put(cap, cap_n, base)
++    elif shape == 'box':
++        depth = h * rng.uniform(.25, .45)                          # projected top-face depth
++        side = w * rng.uniform(.18, .35) * (1 if rng.random() < .5 else -1)
++        fw = w - abs(side)
++        x0 = 0 if side > 0 else abs(side)
++        front = np.array([[x0, depth], [x0 + fw, depth], [x0 + fw, h], [x0, h]])
++        topf = np.array([[x0, depth], [x0 + fw, depth], [x0 + fw + side, 0], [x0 + side, 0]])
++        sidef = (np.array([[x0 + fw, depth], [x0 + fw + side, 0], [x0 + fw + side, h - depth], [x0 + fw, h]])
++                 if side > 0 else np.array([[x0, depth], [x0 + side, 0], [x0 + side, h - depth], [x0, h]]))
++        sgn = 1 if side > 0 else -1
++        gradient = .92 + .08 * (1 - yy / h)                        # faces are not perfectly flat
++        for poly, normal in ((front, (-.25 * sgn, 0, .97)), (sidef, (.9 * sgn, 0, .43)), (topf, (0, -.85, .52))):
++            m = np.zeros((h, w), np.uint8)
++            cv2.fillPoly(m, [np.round(poly).astype(np.int32)], 1)
++            put(m.astype(bool), normal, base, gradient)
++    else:  # bowl
++        A = w / 2
++        b = A * elev
++        depth = h - b
++        u = (xx - A) / A
++        vb = (yy - b) / depth                                      # outer body: lower half-ellipse
++        put((u ** 2 + vb ** 2 <= 1) & (yy >= b),
++            np.stack([u, vb * .8 + .2, np.sqrt(np.clip(1 - u ** 2 - vb ** 2, 0, 1)) + .1], -1), base)
++        put(u ** 2 + ((yy - b) / b) ** 2 <= 1, (0, -.9, .44), base, 1.05)     # rim
++        ui, vi = (xx - A) / (A * .9), (yy - b) / (b * .9)
++        # concave interior: the far (upper) wall faces the camera, the near wall faces away
++        put(ui ** 2 + vi ** 2 <= 1, np.stack([-ui * .8, .3 - .6 * vi, .6 + .4 * np.clip(-vi, 0, 1)], -1), base, .9)
++    # low-frequency material variation
++    var = cv2.resize(rng.normal(0, 1, (4, 4)).astype(np.float32), (w, h), interpolation=cv2.INTER_CUBIC)
++    if not flat:
++        rgb *= (1 + .025 * var)[..., None]
++    rgba = np.dstack([np.clip(rgb, 0, 1) * alpha[..., None], alpha])
++    small = cv2.resize(rgba, (W, H), interpolation=cv2.INTER_AREA)  # premultiplied: no dark fringe
++    a = small[..., 3:]
++    col = np.where(a > 1e-3, small[..., :3] / np.maximum(a, 1e-3), 0)
++    return np.dstack([np.clip(col * 255, 0, 255), np.clip(a * 255, 0, 255)]).round().astype(np.uint8)
++
++
++def procedural_spec(rng, config):
++    """(shape, colour class, light direction). Shape and colour CLASS are each uniform, so
++    white/grey/metal objects are as frequent as any hue."""
++    shapes = tuple(config.get('shapes', PROCEDURAL_SHAPES))
++    colors = tuple(config.get('colors', tuple(PROCEDURAL_COLORS)))
++    for name in shapes:
++        if name not in PROCEDURAL_SHAPES:
++            raise ValueError(f'Unknown procedural shape: {name}')
++    for name in colors:
++        if name not in PROCEDURAL_COLORS:
++            raise ValueError(f'Unknown procedural colour class: {name}')
++    shape = shapes[int(rng.integers(len(shapes)))]
++    color = colors[int(rng.integers(len(colors)))]
++    light = np.array([rng.uniform(-.7, .7), -rng.uniform(.5, .9), rng.uniform(.5, .8)], np.float32)
++    return shape, color, light / np.linalg.norm(light)
++
++
++def procedural_distractor(rng, config, height):
++    """RGBA uint8 patch of one procedural object, `height` px tall, base on the bottom row.
++    config['style']: 'shaded' (default, V5) or 'flat' (V4)."""
++    shape, color, light = procedural_spec(rng, config)
++    return _render(rng, shape, max(4, int(round(height))), color, light, config.get('style', 'shaded'))
+diff --git a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/base_dataset.py b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/base_dataset.py
+index 71d62a0..ddd5aa6 100644
+--- a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/base_dataset.py
++++ b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/base_dataset.py
+@@ -173,6 +173,12 @@ class VLADataset(Dataset):
+         if do_nomalize and config is None:
+             raise ValueError("VLADataset requires a model config; pass model.config via build_vla_dataset.")
+ 
++        from .augment import enabled, seen_index
++        self.aug_config = getattr(dataset_config, "aug", {}) or {}
++        self.aug_repo = str(Path(repo_id).expanduser().resolve())
++        self.aug_index = seen_index(os.environ["LINGBOT_ROOT"]) if enabled(self.aug_config) else None
++        self.aug_clock = torch.zeros(2, dtype=torch.int64).share_memory_()
++        self.aug_offset = 0
+         self.processor = processor
+         self.config = config
+         self.chunk_size = chunk_size
+@@ -265,6 +271,12 @@ class VLADataset(Dataset):
+                     item[state_feature] = item[state_feature].unsqueeze(-1)
+         return item
+ 
++    def configure_augmentation_clock(self, seed):
++        self.aug_clock[0] = seed
++
++    def augmentation_set_epoch(self, epoch):
++        self.aug_clock[1] = epoch
++
+     def getitem(self, idx):
+         raw_item = self.check_lerobot_item(self.dataset[idx])
+         if (
+@@ -276,7 +288,14 @@ class VLADataset(Dataset):
+                 float(self.dataset_meta.fps) / float(max(1, self.chunk_size - 1)),
+                 dtype=torch.float32,
+             )
+-        item = self.feature_transform.apply(raw_item)
++        context = None
++        if self.aug_index is not None:
++            from .augment import SampleAugment
++            episode = int(raw_item["episode_index"])
++            seen, raw_path, task = self.aug_index[(self.aug_repo, episode)]
++            context = SampleAugment(self.aug_config, int(self.aug_clock[0]), int(self.aug_clock[1]), self.aug_offset + idx, raw_path, task)
++            context.seen = seen
++        item = self.feature_transform.apply(raw_item, aug_context=context)
+         if self.transform is not None:
+             item = self.transform(item, raw_item, self.feature_transform.feature_config.images, self.feature_transform.key_mapping)
+         return item
+diff --git a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/multi_vla_dataset.py b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/multi_vla_dataset.py
+index e6f0e14..41ca983 100644
+--- a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/multi_vla_dataset.py
++++ b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/multi_vla_dataset.py
+@@ -109,6 +109,16 @@ class MultiVLADataset(Dataset):
+             dataset_start_index.append(start_index)
+             start_index += dataset.dataset.num_frames
+         self.dataset_start_index = dataset_start_index
++        for child, offset in zip(self._datasets, dataset_start_index):
++            child.aug_offset = offset
++
++    def configure_augmentation_clock(self, seed):
++        for child in self._datasets:
++            child.configure_augmentation_clock(seed)
++
++    def augmentation_set_epoch(self, epoch):
++        for child in self._datasets:
++            child.augmentation_set_epoch(epoch)
+ 
+ 
+     @property
+@@ -147,6 +157,8 @@ class MultiVLADataset(Dataset):
+ 
+         if idx < 0 or idx >= len(self):
+             raise IndexError(f"Index {idx} out of bounds.")
++        if self._datasets and self._datasets[0].aug_index is not None:
++            return self.getdata(idx)
+         max_retries = 200
+         attempts = 0
+         cur = idx
+diff --git a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/transform.py b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/transform.py
+index 05fe43f..450be15 100644
+--- a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/transform.py
++++ b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/transform.py
+@@ -285,6 +285,7 @@ def prepare_images(
+     return_image_grid_thw=False,
+     augment_params=None,
+     return_augment_params=False,
++    teacher_images=None,
+ ):
+     """Normalize, resize, and pad images and stack them into a tensor.
+ 
+@@ -325,7 +326,7 @@ def prepare_images(
+             )
+ 
+         if use_depth_align:
+-            pil_image_dict[key] = img.cpu().numpy()
++            pil_image_dict[key] = (teacher_images[key] if teacher_images is not None else img).cpu().numpy()
+ 
+         if image_processor is None:
+             img = img.to(dtype) / 127.5 - 1.0 # to [-1, 1]
+diff --git a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/utils.py b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/utils.py
+index 1daf261..098d756 100644
+--- a/repos/lingbot-vla-v2/lingbotvla/data/vla_data/utils.py
++++ b/repos/lingbot-vla-v2/lingbotvla/data/vla_data/utils.py
+@@ -372,7 +372,12 @@ class FeatureTransform:
+         return out_item
+ 
+ 
+-    def apply(self, item, policy_eval=False):
++    def apply(self, item, policy_eval=False, aug_context=None):
++        if policy_eval:
++            aug_context = None
++        if aug_context is not None and aug_context.config.get("instruction_swap", {}).get("enabled", True):
++            item = dict(item)
++            item["task"] = str(aug_context.rng.choice(aug_context.seen))
+         w_action = not policy_eval
+         if w_action:
+             item['action_is_pad'] = item[f"{self.org_features['actions'][0]}_is_pad"] if not len(self.actions_convert_from_state)>0 else item[f"{self.org_features['states'][0]}_is_pad"][1:]
+@@ -399,6 +404,8 @@ class FeatureTransform:
+ 
+         if self.normalizer is not None:
+             item = self.normalizer.normalize(item)
++        if aug_context is not None and w_action:
++            aug_context.observe_actions(item)  # V2b idle-arm detection; no-op otherwise
+ 
+         if self.return_item_befor_padding:
+             return item
+@@ -407,6 +414,14 @@ class FeatureTransform:
+ 
+         state = prepare_state(batch_dict, self.model_config.max_state_dim) 
+         actions = prepare_action(batch_dict, self.model_config.max_action_dim)
++        teacher_images, future_teacher_images = None, None
++        if aug_context is not None:
++            state = aug_context.perturb_state(state)  # relative action labels already computed
++            if not self.disabled_image_features:
++                student, teacher_images, future_student, future_teacher_images = aug_context.apply_pair(batch_dict["image"], batch_dict.get("future_image"))
++                batch_dict["image"] = student
++                if future_student:
++                    batch_dict["future_image"] = future_student
+         return_image_grid_thw = getattr(self.model_config, "return_image_grid_thw", False)
+         if not self.disabled_image_features:
+             (
+@@ -419,20 +434,22 @@ class FeatureTransform:
+                 self.processor.image_processor,
+                 batch_dict,
+                 image_keys=self.feature_config.images,
+-                train=self.image_augment and not policy_eval,
++                train=self.image_augment and not policy_eval and aug_context is None,
+                 use_depth_align=self.use_depth_align,
+                 return_image_grid_thw=return_image_grid_thw,
+                 return_augment_params=True,
++                teacher_images=teacher_images,
+             )
+             if self.use_future_image and len(batch_dict.get("future_image", {})) > 0:
+                 future_obs = {**batch_dict, "image": batch_dict["future_image"]}
+                 future_images, _, future_pil_images, _ = prepare_images(
+                     self.processor.image_processor, future_obs,
+                     image_keys=self.feature_config.images,
+-                    train=self.image_augment and not policy_eval,
++                    train=self.image_augment and not policy_eval and aug_context is None,
+                     use_depth_align=self.use_depth_align,
+                     return_image_grid_thw=False,
+                     augment_params=image_augment_params,
++                    teacher_images=future_teacher_images,
+                 )
+             else:
+                 future_images, future_pil_images = None, None
+diff --git a/repos/lingbot-vla-v2/lingbotvla/utils/arguments.py b/repos/lingbot-vla-v2/lingbotvla/utils/arguments.py
+index cfbc347..0082fd0 100644
+--- a/repos/lingbot-vla-v2/lingbotvla/utils/arguments.py
++++ b/repos/lingbot-vla-v2/lingbotvla/utils/arguments.py
+@@ -230,6 +230,7 @@ class DataArguments:
+             )
+         },
+     )
++    aug: dict = field(default_factory=dict, metadata={"help": "Optional deterministic VLA augmentation; profile defaults to none."})
+     image_augment: bool = field(
+         default=False,
+         metadata={
